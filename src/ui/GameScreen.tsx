@@ -22,6 +22,7 @@ import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
 import { oneColorFor } from '../view/palette';
 import { accentFor } from './accents';
+import { CoachMark } from './CoachMark';
 import { Modal, ModalButton } from './Modal';
 
 interface Props {
@@ -38,7 +39,11 @@ interface Props {
   readonly onWin: () => ClearResult;
   readonly onNext: () => void;
   readonly onLevels: () => void;
+  /** First-time card on Easy 1 (FR coach mark). */
+  readonly showCoach: boolean;
+  readonly onCoachDone: () => void;
   readonly onSettings: () => void;
+  readonly onHelp: () => void;
   readonly onHome: () => void;
 }
 
@@ -57,7 +62,10 @@ export function GameScreen({
   onWin,
   onNext,
   onLevels,
+  showCoach,
+  onCoachDone,
   onSettings,
+  onHelp,
   onHome,
 }: Props) {
   const board = useMemo(
@@ -288,6 +296,10 @@ export function GameScreen({
         </button>
       </aside>
 
+      {showCoach && session.status === 'playing' && (
+        <CoachMark onDone={onCoachDone} />
+      )}
+
       {paused && session.status === 'playing' && (
         <Modal>
           <h2 className="text-2xl font-bold text-white">Paused</h2>
@@ -299,6 +311,13 @@ export function GameScreen({
             />
             <ModalButton label="Restart level" onClick={onRestart} />
             <ModalButton label="Levels" onClick={onLevels} />
+            <ModalButton
+              label="How to play"
+              onClick={() => {
+                setPaused(false);
+                onHelp();
+              }}
+            />
             <ModalButton
               label="Settings"
               onClick={() => {

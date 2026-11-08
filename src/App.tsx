@@ -7,6 +7,7 @@ import {
   clearedCount,
   isDifficultyUnlocked,
   isUnlocked,
+  markTutorialSeen,
   recordClear,
   spendHint,
   type ClearResult,
@@ -21,6 +22,7 @@ import {
 import { DifficultyScreen } from './ui/DifficultyScreen';
 import { GameScreen } from './ui/GameScreen';
 import { HomeScreen } from './ui/HomeScreen';
+import { HowToPlayScreen } from './ui/HowToPlayScreen';
 import { LevelsScreen } from './ui/LevelsScreen';
 import { NameScreen } from './ui/NameScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
@@ -44,6 +46,7 @@ export default function App() {
     save.name ? { name: 'home' } : { name: 'name' },
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   // Developer unlock-all (FR-26). Never saved, so it cannot leak into real progress (FR-27).
   const devAvailable = unlockAllEnabled();
   const [devOn, setDevOn] = useState(devAvailable);
@@ -90,6 +93,14 @@ export default function App() {
     setSave(saveRef.current);
   }, []);
 
+  const onCoachDone = useCallback(() => {
+    saveRef.current = {
+      ...saveRef.current,
+      progress: markTutorialSeen(saveRef.current.progress),
+    };
+    setSave(saveRef.current);
+  }, []);
+
   const setName = (raw: string, fillAnimal: boolean) =>
     setSave((s) => ({
       ...s,
@@ -121,6 +132,7 @@ export default function App() {
           onPlay={() => play(progress.last.difficulty, progress.last.level)}
           onAllLevels={() => setScreen({ name: 'difficulty' })}
           onSettings={() => setSettingsOpen(true)}
+          onHelp={() => setHelpOpen(true)}
         />
       );
       break;
@@ -172,7 +184,10 @@ export default function App() {
             })
           }
           onLevels={() => setScreen({ name: 'levels', difficulty })}
+          showCoach={difficulty === 0 && level === 1 && !progress.seenTutorial}
+          onCoachDone={onCoachDone}
           onSettings={() => setSettingsOpen(true)}
+          onHelp={() => setHelpOpen(true)}
           onHome={() => setScreen({ name: 'home' })}
         />
       );
@@ -201,6 +216,7 @@ export default function App() {
           onBack={() => setSettingsOpen(false)}
         />
       )}
+      {helpOpen && <HowToPlayScreen onBack={() => setHelpOpen(false)} />}
       {unlockAll && (
         <span className="fixed top-2 left-1/2 z-40 -translate-x-1/2 rounded-full bg-amber-400 px-3 py-0.5 text-xs font-bold text-slate-950">
           DEV: all unlocked
