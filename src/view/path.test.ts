@@ -81,8 +81,8 @@ describe('timing', () => {
   });
 
   it('bump stops short of the blocker but always moves a little', () => {
-    expect(bumpDistance(1)).toBe(0.12);
-    expect(bumpDistance(4)).toBeCloseTo(2.9);
+    expect(bumpDistance(1)).toBeCloseTo(0.2);
+    expect(bumpDistance(4)).toBeCloseTo(3.2);
   });
 
   it('keeps the bounce timings in the table', () => {

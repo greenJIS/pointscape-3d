@@ -74,35 +74,56 @@ export function subPath(path: ArrowPath, from: number, to: number): Vec3[] {
   return out;
 }
 
-/** Slide timing. Guesses at the original game, kept in one table so they are easy to tune. */
+/**
+ * Animation timing, copied from the design demo. Kept in one table so it is easy to tune.
+ * Times are in seconds, lengths in cells.
+ */
 export const ANIM = {
-  /** Start speed, cells per second. */
+  /** Exit slide: start speed (cells per second) and acceleration (cells per second squared). */
   speed: 8,
-  /** Acceleration, cells per second squared. */
   acc: 40,
   /** Bounce: seconds going forward, then coming back. */
   forward: 0.12,
   back: 0.12,
-  /** Blocker jiggle length in seconds and size in cells. */
-  jiggle: 0.28,
-  jiggleSize: 0.14,
-  /** Hold this long, in seconds, to preview an arrow's path (FR-54). */
+  /** Blocker jiggle: one sine hump, this long and this far. */
+  jiggle: 0.22,
+  jiggleSize: 0.1,
+  /** Blocked flash: fully red, then fading back to the arrow colour. */
+  flashFull: 0.25,
+  flashFade: 0.35,
+  /** Hint: one pulse toward white with a wider head. */
+  hintTime: 0.9,
+  hintWhite: 0.55,
+  hintHead: 0.4,
+  /** Hold this long to preview an arrow's path (FR-54). */
   hold: 0.35,
-  /** Intro draw-in: seconds per arrow and the spread of start times (FR-56). */
+  /** Intro draw-in: each arrow takes `introDraw`, starts `introStep` after the one before. */
   introDraw: 0.45,
-  introSpread: 0.5,
-  /** Win ripple: seconds per ring and the delay between layers (FR-55). */
-  ripple: 0.9,
-  rippleLayerDelay: 0.18,
+  introStep: 0.012,
+  /** The whole intro never spreads over more than this, so big boards start quickly. */
+  introMaxSpread: 1.2,
+  /** Win ripple over the grid dots: seconds per dot, delay per cell of distance, per layer. */
+  rippleTime: 0.55,
+  rippleDelay: 0.035,
+  rippleLayerDelay: 0.15,
+  /** Pause after the last arrow is gone before the win card, and before the lose card. */
+  winCard: 0.9,
+  loseCard: 0.65,
+  /** Grid dots fade back in over this long once an arrow has passed (FR-52). */
+  dotFade: 0.2,
+  /** A moving arrow hides dots closer than this to its body. */
+  dotNear: 0.42,
 } as const;
 
 /** Distance travelled after `t` seconds of an exit slide. */
-export const slideDistance = (t: number): number =>
-  ANIM.speed * t + 0.5 * ANIM.acc * t * t;
+export const slideDistance = (t: number, rate = 1): number => {
+  const s = t * rate;
+  return ANIM.speed * s + 0.5 * ANIM.acc * s * s;
+};
 
 /**
- * How far a blocked arrow nudges forward before it bounces back. It stops short
- * of the blocker, which sits `blockerCells` cells beyond the head.
+ * How far a blocked arrow nudges forward before it bounces back: it ends 0.2 cells into
+ * the gap in front of the blocker, which sits `blockerCells` cells beyond the head.
  */
 export const bumpDistance = (blockerCells: number): number =>
-  Math.max(0.12, blockerCells - 1.1);
+  blockerCells - 0.8;
