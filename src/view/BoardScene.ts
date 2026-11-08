@@ -33,7 +33,12 @@ export interface SceneOptions {
   readonly onTap: (arrowId: number) => void;
 }
 
-type State = 'idle' | 'exit' | 'bounce' | 'hidden';
+type State = 'idle' | 'exit' | 'bounce' | 'hidden' | 'intro';
+
+interface Ripple {
+  readonly mesh: THREE.Mesh;
+  readonly t0: number;
+}
 
 interface ArrowView {
   readonly arrow: Arrow;
@@ -129,6 +134,11 @@ export class BoardScene {
   private moved = false;
   private pinchStart = 0;
   private pinchZoom = 1;
+  private readonly ripples: Ripple[] = [];
+  private readonly rippleGeo = new THREE.RingGeometry(0.92, 1, 64);
+  private readonly reduceMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private holdTimer = 0;
   private previewing = false;
   private readonly preview = new THREE.Group();
@@ -160,6 +170,7 @@ export class BoardScene {
     this.setupLights();
     this.buildPlates();
     for (const arrow of level.arrows) this.addArrow(arrow);
+    this.startIntro();
     this.applyLayerView();
     this.refreshColors();
     this.attach();
@@ -299,10 +310,11 @@ export class BoardScene {
     view: ArrowView | undefined,
     offset: number,
     withPick: boolean,
+    length?: number,
   ): void {
     if (!view) return;
     const { path, arrow } = view;
-    const pts = subPath(path, offset, offset + path.bodyLength);
+    const pts = subPath(path, offset, offset + (length ?? path.bodyLength));
     view.tube.geometry.dispose();
     const geo = this.tubeGeometry(pts, TUBE_RADIUS, 10);
     view.tube.visible = geo !== null;
@@ -327,6 +339,91 @@ export class BoardScene {
     const side = new THREE.Vector3().crossVectors(normal, dir);
     view.head.quaternion.setFromRotationMatrix(
       new THREE.Matrix4().makeBasis(dir, side, normal),
+    );
+  }
+
+  /** Arrows draw in along their paths, started one after another (FR-56). */
+  private startIntro(): void {
+    if (this.reduceMotion) return;
+    const now = performance.now() / 1000;
+    const all = [...this.views.values()];
+    all.forEach((v, i) => {
+      v.state = 'intro';
+      v.t0 = now + (i / all.length) * ANIM.introSpread;
+    });
+  }
+
+  private stepIntro(v: ArrowView, now: number): void {
+    if (now < v.t0) {
+      v.group.visible = false;
+      return;
+    }
+    const k = Math.min(1, (now - v.t0) / ANIM.introDraw);
+    if (k >= 1) {
+      v.state = 'idle';
+      v.group.visible = !this.hiddenLayer(v.layer);
+      this.shape(v, 0, false);
+      return;
+    }
+    v.group.visible = !this.hiddenLayer(v.layer);
+    const ease = 1 - (1 - k) * (1 - k);
+    this.shape(v, 0, false, Math.max(0.05, ease * v.path.bodyLength));
+  }
+
+  private hiddenLayer(layer: number): boolean {
+    return layer >= this.level.layers - this.layerView.hideFront;
+  }
+
+  /** Win ripple from a cell, layer by layer in stacked levels (FR-55). */
+  ripple(from: Vec3, now = performance.now() / 1000): void {
+    if (this.reduceMotion) return;
+    const ringGeo = this.rippleGeo;
+    for (let z = 0; z < this.level.layers; z++) {
+      const mesh = new THREE.Mesh(
+        ringGeo,
+        new THREE.MeshBasicMaterial({
+          color: '#5eead4',
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        }),
+      );
+      const at = this.world({ x: from.x, y: from.y, z });
+      mesh.position.set(at.x, at.y, z * this.layerSpacing() - 0.2);
+      mesh.scale.setScalar(0.01);
+      mesh.visible = false;
+      this.root.add(mesh);
+      this.ripples.push({ mesh, t0: now + z * ANIM.rippleLayerDelay });
+    }
+    this.dirty = true;
+  }
+
+  private stepRipples(now: number): boolean {
+    if (this.ripples.length === 0) return false;
+    const reach = Math.hypot(this.level.width, this.level.height);
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      if (!r) continue;
+      const k = (now - r.t0) / ANIM.ripple;
+      if (k >= 1) {
+        this.root.remove(r.mesh);
+        (r.mesh.material as THREE.Material).dispose();
+        this.ripples.splice(i, 1);
+        continue;
+      }
+      r.mesh.visible = k > 0 && !this.hiddenLayer(this.layerOf(r.mesh));
+      if (k > 0) {
+        r.mesh.scale.setScalar(Math.max(0.01, k * reach));
+        (r.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.7;
+      }
+    }
+    return true;
+  }
+
+  private layerOf(mesh: THREE.Mesh): number {
+    return Math.max(
+      0,
+      Math.round((mesh.position.z + 0.2) / this.layerSpacing()),
     );
   }
 
@@ -481,6 +578,9 @@ export class BoardScene {
       } else if (v.state === 'bounce') {
         animating = true;
         this.stepBounce(v, now);
+      } else if (v.state === 'intro') {
+        animating = true;
+        this.stepIntro(v, now);
       }
       if (now < v.jiggleT0 + ANIM.jiggle) {
         animating = true;
@@ -500,6 +600,7 @@ export class BoardScene {
         this.refreshColors();
       }
     }
+    if (this.stepRipples(now)) animating = true;
     if (this.hintId !== null) {
       const h = this.views.get(this.hintId);
       if (h) {
@@ -723,6 +824,7 @@ export class BoardScene {
     this.disposed = true;
     window.clearTimeout(this.holdTimer);
     this.previewGeo.dispose();
+    this.rippleGeo.dispose();
     this.previewOk.dispose();
     this.previewBlocked.dispose();
     cancelAnimationFrame(this.raf);

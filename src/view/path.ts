@@ -88,6 +88,12 @@ export const ANIM = {
   jiggleSize: 0.14,
   /** Hold this long, in seconds, to preview an arrow's path (FR-54). */
   hold: 0.35,
+  /** Intro draw-in: seconds per arrow and the spread of start times (FR-56). */
+  introDraw: 0.45,
+  introSpread: 0.5,
+  /** Win ripple: seconds per ring and the delay between layers (FR-55). */
+  ripple: 0.9,
+  rippleLayerDelay: 0.18,
 } as const;
 
 /** Distance travelled after `t` seconds of an exit slide. */
