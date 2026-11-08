@@ -10,6 +10,7 @@ interface Props {
   readonly onPlay: () => void;
   readonly onAllLevels: () => void;
   readonly onSettings: () => void;
+  readonly onHelp: () => void;
 }
 
 export function HomeScreen({
@@ -18,6 +19,7 @@ export function HomeScreen({
   onPlay,
   onAllLevels,
   onSettings,
+  onHelp,
 }: Props) {
   const { difficulty, level } = progress.last;
   const label =
@@ -26,14 +28,24 @@ export function HomeScreen({
       : 'Play';
   return (
     <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-6 p-6 lg:flex-row lg:gap-16">
-      <button
-        type="button"
-        onClick={onSettings}
-        aria-label="Settings"
-        className="absolute top-5 right-5 grid size-11 place-items-center rounded-full bg-slate-800 text-lg"
-      >
-        ⚙
-      </button>
+      <div className="absolute top-5 right-5 flex gap-2">
+        <button
+          type="button"
+          onClick={onHelp}
+          aria-label="How to play"
+          className="grid size-11 place-items-center rounded-full bg-slate-800 text-lg font-bold"
+        >
+          ?
+        </button>
+        <button
+          type="button"
+          onClick={onSettings}
+          aria-label="Settings"
+          className="grid size-11 place-items-center rounded-full bg-slate-800 text-lg"
+        >
+          ⚙
+        </button>
+      </div>
       <HeroBoard />
       <div className="flex w-full max-w-sm flex-col items-center lg:items-start">
         <Logo className="text-4xl lg:items-start" />
