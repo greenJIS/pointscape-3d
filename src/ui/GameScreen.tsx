@@ -5,7 +5,8 @@ import {
   UNLOCK_AFTER,
 } from '../core/difficulty';
 import { buildLevel } from '../core/levels';
-import type { Arrow } from '../core/types';
+import { headOf } from '../core/board';
+import type { Arrow, Vec3 } from '../core/types';
 import type { ClearResult } from '../game/progress';
 import {
   arrowsLeft,
@@ -49,6 +50,8 @@ interface Props {
 
 const SLIDE_MS = 320;
 const FLASH_MS = 400;
+/** Lets the clear ripple play before the win card covers the board. */
+const WIN_DELAY_MS = 800;
 
 export function GameScreen({
   difficulty,
@@ -76,6 +79,8 @@ export function GameScreen({
   const [leaving, setLeaving] = useState<ReadonlyMap<number, Arrow>>(new Map());
   const [flashId, setFlashId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
+  const [rippleFrom, setRippleFrom] = useState<Vec3 | null>(null);
+  const [winShown, setWinShown] = useState(false);
   const [paused, setPaused] = useState(false);
   const [result, setResult] = useState<ClearResult | null>(null);
   const [gap, setGap] = useState(0.3);
@@ -116,6 +121,8 @@ export function GameScreen({
         }
         if (r.session.status === 'won' && !reported.current) {
           reported.current = true;
+          if (arrow) setRippleFrom(headOf(arrow));
+          window.setTimeout(() => setWinShown(true), WIN_DELAY_MS);
           setResult(onWin());
         }
       } else {
@@ -137,6 +144,8 @@ export function GameScreen({
   const onRestart = () => {
     reported.current = false;
     setResult(null);
+    setRippleFrom(null);
+    setWinShown(false);
     setPaused(false);
     setLeaving(new Map());
     setHintId(null);
@@ -199,6 +208,7 @@ export function GameScreen({
           leaving={leaving}
           lowPower={lowPower}
           layerView={layerView}
+          rippleFrom={rippleFrom}
           onTap={onTap}
         />
       ) : (
@@ -330,7 +340,7 @@ export function GameScreen({
         </Modal>
       )}
 
-      {session.status === 'won' && result && (
+      {session.status === 'won' && result && winShown && (
         <Modal>
           <div
             className={`mx-auto mb-2 grid size-16 place-items-center rounded-full text-3xl text-slate-950 ${accent.bg}`}
