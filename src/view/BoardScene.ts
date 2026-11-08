@@ -1,17 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import {
-  blockerOf,
-  exitRay,
-  freeArrowIds,
-  headOf,
-  occupancy,
-} from '../core/board';
+import { blockerOf, exitRay, headOf, occupancy } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { key } from '../core/vec';
 import { roundCorners } from './corners';
-import { BLOCKED, arrowColors } from './palette';
+import { BLOCKED, POOL, arrowColors } from './palette';
 import {
   ANIM,
   arrowPath,
@@ -27,6 +21,10 @@ export interface LayerView {
   /** How many layers to hide, starting from the one nearest the viewer. */
   readonly hideFront: number;
   readonly xray: boolean;
+  /** The see-through panel of each layer. */
+  readonly showLayers: boolean;
+  /** The grid dots of each layer. */
+  readonly showDots: boolean;
 }
 
 export interface SceneOptions {
@@ -36,22 +34,22 @@ export interface SceneOptions {
 
 type State = 'idle' | 'exit' | 'bounce' | 'hidden' | 'intro';
 
-interface Ripple {
-  readonly mesh: THREE.Mesh;
-  readonly t0: number;
-}
-
 interface ArrowView {
   readonly arrow: Arrow;
   readonly path: ArrowPath;
   readonly group: THREE.Group;
   readonly tube: THREE.Mesh;
   readonly head: THREE.Mesh;
+  readonly shadowTube: THREE.Mesh;
+  readonly shadowHead: THREE.Mesh;
   readonly pick: THREE.Mesh;
+  readonly pickHead: THREE.Mesh;
   readonly material: THREE.MeshStandardMaterial;
   readonly layer: number;
   /** Drawn as part of the merged layer mesh instead of its own meshes (N-2). */
   batched: boolean;
+  /** Cell-space points of the body as drawn now, for hiding grid dots under it. */
+  shown: readonly Vec3[];
   /** Whether the arrow should be in the merged mesh at the next rebuild. */
   want: boolean;
   hasTube: boolean;
@@ -70,28 +68,132 @@ interface ArrowView {
 
 /** Pick meshes sit on their own layer: the camera never draws them, only the raycaster sees them. */
 const PICK_LAYER = 1;
-const TUBE_RADIUS = 0.16;
-const PICK_RADIUS = 0.42;
+const TUBE_RADIUS = 0.14;
+const PICK_RADIUS = 0.2;
 const CORNER = 0.34;
 const PLATE = new THREE.Color('#1e293b');
-const DIM = 0.5;
+const DOT_COLOR = new THREE.Color('#475569');
+/** Direction toward the key light that casts the drop shadows, in the scene. */
+const KEY_DIRECTION = new THREE.Vector3(-4, 7, 9).normalize();
+/** How far a shadow lands from its arrow, in cells, and how far behind it. */
+const SHADOW_SHIFT = 0.14;
+const SHADOW_DEPTH = 0.12;
+const WHITE = new THREE.Color('#ffffff');
 
-/** The barbed head, pointing along +x, a little over one cell long. */
+/**
+ * The Barbed head, pointing along +x, from the design demo. Its numbers are the demo's
+ * in tube widths (w = 0.3 cells): tip 1.5w ahead of the path end, wings 1.2w to each side
+ * just behind it, and a notch 0.3w ahead of the wings.
+ */
 function headGeometry(): THREE.ExtrudeGeometry {
+  const w = 0.3;
   const s = new THREE.Shape();
-  s.moveTo(0.62, 0);
-  s.lineTo(-0.05, 0.42);
-  s.lineTo(-0.2, 0);
-  s.lineTo(-0.05, -0.42);
+  s.moveTo(1.5 * w, 0);
+  s.lineTo(-0.1 * w, 1.2 * w);
+  s.lineTo(0.3 * w, 0);
+  s.lineTo(-0.1 * w, -1.2 * w);
   s.closePath();
   const g = new THREE.ExtrudeGeometry(s, {
-    depth: 0.2,
+    depth: 0.1,
     bevelEnabled: true,
-    bevelThickness: 0.05,
+    bevelThickness: 0.09,
     bevelSize: 0.05,
-    bevelSegments: 2,
+    bevelSegments: 6,
   });
-  g.translate(0, 0, -0.1);
+  // As thick as the tube, and set back so the tube end sits inside it: one solid arrow.
+  g.translate(-0.06, 0, -0.05);
+  return g;
+}
+
+/**
+ * A round tube along a polyline, with a rounded cap at the tail. Straight stretches stay
+ * exactly straight and corners follow the rounded points, so bends keep an even width.
+ * The front end is left open: the head covers it.
+ */
+function tubeMesh(
+  pts: readonly THREE.Vector3[],
+  radius: number,
+  radial: number,
+): THREE.BufferGeometry | null {
+  const n = pts.length;
+  const first = pts[0];
+  const last = pts[n - 1];
+  if (n < 2 || !first || !last) return null;
+  const tangents: THREE.Vector3[] = pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)] ?? p;
+    const b = pts[Math.min(n - 1, i + 1)] ?? p;
+    return b.clone().sub(a).normalize();
+  });
+  const t0 = tangents[0];
+  if (!t0) return null;
+  const ref =
+    Math.abs(t0.z) > 0.9
+      ? new THREE.Vector3(1, 0, 0)
+      : new THREE.Vector3(0, 0, 1);
+  const normals: THREE.Vector3[] = [
+    new THREE.Vector3().crossVectors(t0, ref).normalize(),
+  ];
+  for (let i = 1; i < n; i++) {
+    const prev = normals[i - 1];
+    const ta = tangents[i - 1];
+    const tb = tangents[i];
+    if (!prev || !ta || !tb) return null;
+    const q = new THREE.Quaternion().setFromUnitVectors(ta, tb);
+    normals.push(prev.clone().applyQuaternion(q).normalize());
+  }
+  const positions: number[] = [];
+  const norms: number[] = [];
+  let rings = 0;
+  const ring = (
+    center: THREE.Vector3,
+    nrm: THREE.Vector3,
+    bin: THREE.Vector3,
+    r: number,
+    sphereCenter: THREE.Vector3 | null,
+  ): void => {
+    for (let j = 0; j < radial; j++) {
+      const a = (j / radial) * Math.PI * 2;
+      const out = nrm
+        .clone()
+        .multiplyScalar(Math.cos(a))
+        .addScaledVector(bin, Math.sin(a));
+      const pos = center.clone().addScaledVector(out, r);
+      const nv = sphereCenter ? pos.clone().sub(sphereCenter).normalize() : out;
+      positions.push(pos.x, pos.y, pos.z);
+      norms.push(nv.x, nv.y, nv.z);
+    }
+    rings++;
+  };
+  const n0 = normals[0];
+  if (!n0) return null;
+  const b0 = new THREE.Vector3().crossVectors(t0, n0);
+  // Tail cap: a quarter sphere, from its tip to the first full ring.
+  for (const deg of [90, 65, 40, 18]) {
+    const a = THREE.MathUtils.degToRad(deg);
+    const center = first.clone().addScaledVector(t0, -radius * Math.sin(a));
+    ring(center, n0, b0, radius * Math.cos(a), first);
+  }
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    const nrm = normals[i];
+    const tan = tangents[i];
+    if (!p || !nrm || !tan) return null;
+    ring(p, nrm, new THREE.Vector3().crossVectors(tan, nrm), radius, null);
+  }
+  const index: number[] = [];
+  for (let i = 0; i < rings - 1; i++) {
+    for (let j = 0; j < radial; j++) {
+      const a = i * radial + j;
+      const b = (i + 1) * radial + j;
+      const c = i * radial + ((j + 1) % radial);
+      const d = (i + 1) * radial + ((j + 1) % radial);
+      index.push(a, c, b, b, c, d);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+  g.setIndex(index);
   return g;
 }
 
@@ -109,6 +211,36 @@ function plateShape(w: number, h: number, r: number): THREE.Shape {
   s.lineTo(x, y + r);
   s.quadraticCurveTo(x, y, x + r, y);
   return s;
+}
+
+const easeOutBack = (x: number): number => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+/** True when grid cell (x, y) lies within `radius` of the polyline `pts` (cell space). */
+function nearBody(
+  pts: readonly Vec3[],
+  x: number,
+  y: number,
+  radius: number,
+): boolean {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (!a || !b) continue;
+    const vx = b.x - a.x;
+    const vy = b.y - a.y;
+    const t = Math.max(
+      0,
+      Math.min(1, ((x - a.x) * vx + (y - a.y) * vy) / (vx * vx + vy * vy || 1)),
+    );
+    if (Math.hypot(x - (a.x + vx * t), y - (a.y + vy * t)) < radius) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -130,10 +262,26 @@ export class BoardScene {
   private oneColor: string | null = null;
   private readonly colors: Map<number, string>;
   private alive: ReadonlySet<number>;
-  private layerView: LayerView = { gap: 0.3, hideFront: 0, xray: false };
+  private layerView: LayerView = {
+    gap: 0.3,
+    hideFront: 0,
+    xray: false,
+    showLayers: true,
+    showDots: false,
+  };
   private hintId: number | null = null;
-  private yaw = 0;
-  private pitch = 0.42;
+  /** Player's arrow speed setting: 1 is the demo's speed. */
+  slideRate = 1;
+  /**
+   * Board turn like a turntable: spin about the board's own up axis, then tilt toward the
+   * viewer. There is no roll, so the board never ends up sideways. The anchor is the
+   * board's centre, at the root's origin.
+   */
+  private spin = 0;
+  private tilt = 0;
+  private readonly orient = new THREE.Quaternion();
+  /** Where shadows land from their arrows, in board space. Follows the light as the board turns. */
+  private readonly shadowOffset = new THREE.Vector3(0.07, -0.12, -0.12);
   private zoom = 1;
   private dirty = true;
   private raf = 0;
@@ -147,21 +295,34 @@ export class BoardScene {
   private readonly batches: THREE.Mesh[] = [];
   private readonly batchMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
-    roughness: 0.28,
-    metalness: 0.08,
+    roughness: 0.34,
+    metalness: 0.1,
     vertexColors: true,
   });
+  private readonly shadowMat = new THREE.MeshBasicMaterial({
+    color: '#000000',
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+  });
+  private readonly batchShadows: THREE.Mesh[] = [];
   private batchDirty = true;
   private lastRebuild = 0;
-  private readonly ripples: Ripple[] = [];
-  private readonly rippleGeo = new THREE.RingGeometry(0.92, 1, 64);
+  private readonly dotAlpha: Float32Array[] = [];
+  private dotsDirty = true;
+  private dotsFading = false;
+  private lastDots = performance.now() / 1000;
+  /** Set when the last arrow is tapped. The win ripple starts once it has slid out. */
+  private pendingWin: Vec3 | null = null;
+  private win: { readonly t0: number; readonly from: Vec3 } | null = null;
+  private hintStart = -10;
   private readonly reduceMotion =
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private holdTimer = 0;
   private previewing = false;
   private readonly preview = new THREE.Group();
-  private readonly previewGeo = new THREE.SphereGeometry(0.11, 10, 10);
+  private readonly previewGeo = new THREE.BoxGeometry(0.3, 0.08, 0.08);
   private readonly previewOk = new THREE.MeshBasicMaterial({
     color: '#4ade80',
   });
@@ -174,6 +335,9 @@ export class BoardScene {
     this.level = level;
     this.colors = arrowColors(level);
     this.opts = opts;
+    // Single layers face the player flat, like the demo. Stacks tilt so the layers read.
+    if (level.layers > 1) this.tilt = 0.42;
+    this.updateOrient();
     this.alive = new Set(level.arrows.map((a) => a.id));
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -183,7 +347,7 @@ export class BoardScene {
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 2),
     );
-    this.scene.background = new THREE.Color('#0f172a');
+    this.scene.background = new THREE.Color('#1e293b');
     this.scene.add(this.root);
     this.root.add(this.preview);
     this.setupLights();
@@ -212,7 +376,11 @@ export class BoardScene {
     const key = new THREE.DirectionalLight('#ffffff', 1.7);
     key.position.set(-4, 7, 9);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight('#a5f3fc', 0.9);
+    // Mirror of the key light, so the board looks the same from behind.
+    const backKey = new THREE.DirectionalLight('#ffffff', 1.7);
+    backKey.position.set(-4, 7, -9);
+    this.scene.add(backKey);
+    const rim = new THREE.DirectionalLight('#a5f3fc', 0.5);
     rim.position.set(6, -3, -6);
     this.scene.add(rim);
   }
@@ -222,8 +390,40 @@ export class BoardScene {
     return new THREE.Vector3(
       p.x - (width - 1) / 2,
       -(p.y - (height - 1) / 2),
-      p.z * this.layerSpacing(),
+      this.layerZ(p.z),
     );
+  }
+
+  /** Depth of a layer. The centre between the first and last layer sits at 0. */
+  private layerZ(z: number): number {
+    return (z - (this.level.layers - 1) / 2) * this.layerSpacing();
+  }
+
+  /**
+   * Points the drop shadows away from the key light. The light is fixed in the scene, so
+   * in board space it moves as the board turns, and the shadows have to move with it.
+   */
+  private aimShadows(): void {
+    const light = KEY_DIRECTION.clone().applyQuaternion(
+      this.orient.clone().invert(),
+    );
+    const lift = Math.max(Math.abs(light.z), 0.45);
+    const next = new THREE.Vector3(
+      (-light.x / lift) * SHADOW_SHIFT,
+      (-light.y / lift) * SHADOW_SHIFT,
+      light.z >= 0 ? -SHADOW_DEPTH : SHADOW_DEPTH,
+    );
+    if (next.distanceToSquared(this.shadowOffset) < 1e-8) return;
+    this.shadowOffset.copy(next);
+    for (const v of this.views.values()) {
+      v.shadowTube.position.copy(next);
+      v.shadowHead.position.copy(v.head.position).add(next);
+    }
+    for (const s of this.batchShadows) s.position.copy(next);
+  }
+
+  private updateOrient(): void {
+    this.orient.setFromEuler(new THREE.Euler(-this.tilt, this.spin, 0, 'XYZ'));
   }
 
   private layerSpacing(): number {
@@ -235,14 +435,16 @@ export class BoardScene {
     const geo = new THREE.ShapeGeometry(
       plateShape(width + 0.8, height + 0.8, 0.6),
     );
-    const dotGeo = new THREE.CircleGeometry(0.055, 10);
-    const dotMat = new THREE.MeshBasicMaterial({ color: '#64748b' });
+    const dotGeo = new THREE.CircleGeometry(0.07, 12);
+    const dotMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
     for (let z = 0; z < layers; z++) {
+      // See-through from both sides, so the layers show when the board is turned around.
       const mat = new THREE.MeshBasicMaterial({
-        color: z === 0 ? PLATE : '#475569',
-        transparent: z > 0,
-        opacity: z === 0 ? 1 : 0.16,
-        depthWrite: z === 0,
+        color: '#475569',
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false,
       });
       const plate = new THREE.Mesh(geo, mat);
       plate.userData.layer = z;
@@ -259,7 +461,9 @@ export class BoardScene {
         );
         dots.setMatrixAt(i, m);
       }
+      dots.setColorAt(0, DOT_COLOR);
       dots.userData.layer = z;
+      this.dotAlpha.push(new Float32Array(width * height).fill(1));
       this.root.add(dots);
       this.dots.push(dots);
     }
@@ -269,19 +473,29 @@ export class BoardScene {
     const path = arrowPath(this.level, arrow);
     const material = new THREE.MeshStandardMaterial({
       color: '#ffffff',
-      roughness: 0.28,
-      metalness: 0.08,
+      roughness: 0.34,
+      metalness: 0.1,
     });
     const group = new THREE.Group();
     const tube = new THREE.Mesh(new THREE.BufferGeometry(), material);
     const head = new THREE.Mesh(this.headGeo, material);
+    const shadowTube = new THREE.Mesh(tube.geometry, this.shadowMat);
+    const shadowHead = new THREE.Mesh(this.headGeo, this.shadowMat);
+    shadowTube.position.copy(this.shadowOffset);
+    shadowHead.position.copy(this.shadowOffset);
+    shadowTube.renderOrder = -1;
+    shadowHead.renderOrder = -1;
+    if (!this.opts.lowPower) group.add(shadowTube, shadowHead);
     const pick = new THREE.Mesh(
       new THREE.BufferGeometry(),
-      new THREE.MeshBasicMaterial({ visible: false }),
+      new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }),
     );
     pick.userData.arrowId = arrow.id;
     pick.layers.set(PICK_LAYER);
-    group.add(tube, head, pick);
+    const pickHead = new THREE.Mesh(this.headGeo, pick.material);
+    pickHead.userData.arrowId = arrow.id;
+    pickHead.layers.set(PICK_LAYER);
+    group.add(tube, head, pick, pickHead);
     this.root.add(group);
     const layer = arrow.cells[0]?.z ?? 0;
     this.views.set(arrow.id, {
@@ -290,10 +504,14 @@ export class BoardScene {
       group,
       tube,
       head,
+      shadowTube,
+      shadowHead,
       pick,
+      pickHead,
       material,
       layer,
       batched: false,
+      shown: arrow.cells,
       want: false,
       hasTube: false,
       solid: null,
@@ -317,16 +535,8 @@ export class BoardScene {
     radius: number,
     radial: number,
   ): THREE.BufferGeometry | null {
-    const dense = roundCorners(points, CORNER).map((p) => this.world(p));
-    if (dense.length < 2) return null;
-    const curve = new THREE.CatmullRomCurve3(dense, false, 'centripetal');
-    return new THREE.TubeGeometry(
-      curve,
-      Math.max(6, dense.length * 2),
-      radius,
-      radial,
-      false,
-    );
+    const dense = roundCorners(points, CORNER, 10).map((p) => this.world(p));
+    return tubeMesh(dense, radius, radial);
   }
 
   /** Shows the part of the path from `offset` to `offset + body length`. */
@@ -345,10 +555,14 @@ export class BoardScene {
       TUBE_RADIUS,
       this.opts.lowPower ? 6 : 10,
     );
+    view.shown = pts;
     view.hasTube = geo !== null;
     view.tube.visible = geo !== null && !view.batched;
     view.head.visible = !view.batched;
     view.tube.geometry = geo ?? new THREE.BufferGeometry();
+    view.shadowTube.geometry = view.tube.geometry;
+    view.shadowTube.visible = view.tube.visible;
+    view.shadowHead.visible = view.head.visible;
     if (withPick) {
       view.pick.geometry.dispose();
       view.pick.geometry =
@@ -357,14 +571,35 @@ export class BoardScene {
     const end = pts[pts.length - 1];
     if (!end) return;
     view.head.position.copy(this.world(end));
-    view.head.quaternion.copy(this.headQuaternion(arrow));
+    view.head.quaternion.copy(
+      this.headQuaternion(this.lastDirection(pts, arrow)),
+    );
+    view.pickHead.position.copy(view.head.position);
+    view.pickHead.quaternion.copy(view.head.quaternion);
+    view.shadowHead.position.copy(view.head.position).add(this.shadowOffset);
+    view.shadowHead.quaternion.copy(view.head.quaternion);
   }
 
-  private headQuaternion(arrow: Arrow): THREE.Quaternion {
+  /** Direction of the last stretch of the body, so the head turns with the path (FR-43). */
+  private lastDirection(pts: readonly Vec3[], arrow: Arrow): Vec3 {
+    const end = pts[pts.length - 1];
+    if (!end) return arrow.dir;
+    for (let k = pts.length - 2; k >= 0; k--) {
+      const p = pts[k];
+      if (!p) continue;
+      const dx = end.x - p.x;
+      const dy = end.y - p.y;
+      const dz = end.z - p.z;
+      if (Math.hypot(dx, dy, dz) > 0.05) return { x: dx, y: dy, z: dz };
+    }
+    return arrow.dir;
+  }
+
+  private headQuaternion(direction: Vec3): THREE.Quaternion {
     const dir = new THREE.Vector3(
-      arrow.dir.x,
-      -arrow.dir.y,
-      arrow.dir.z,
+      direction.x,
+      -direction.y,
+      direction.z,
     ).normalize();
     const normal =
       Math.abs(dir.z) > 0.9
@@ -402,7 +637,7 @@ export class BoardScene {
       head.applyMatrix4(
         new THREE.Matrix4().compose(
           this.world(end),
-          this.headQuaternion(v.arrow),
+          this.headQuaternion(v.arrow.dir),
           new THREE.Vector3(1, 1, 1),
         ),
       );
@@ -418,6 +653,10 @@ export class BoardScene {
     return v.solid;
   }
 
+  private hintActive(v: ArrowView, now: number): boolean {
+    return this.hintId === v.arrow.id && now < this.hintStart + ANIM.hintTime;
+  }
+
   /** Which arrows can sit in the merged mesh: idle ones with nothing animating. */
   private syncBatched(now: number): void {
     let pending = false;
@@ -427,12 +666,14 @@ export class BoardScene {
         v.flashUntil === 0 &&
         now >= v.jiggleT0 + ANIM.jiggle &&
         v.group.position.lengthSq() === 0 &&
-        this.hintId !== v.arrow.id;
+        !this.hintActive(v, now);
       if (!v.want && v.batched) {
         // Leaving the merged mesh must show at once, or the arrow draws twice.
         v.batched = false;
         v.tube.visible = v.hasTube;
         v.head.visible = true;
+        v.shadowTube.visible = v.hasTube;
+        v.shadowHead.visible = true;
         this.batchDirty = true;
       } else if (v.want && !v.batched) {
         pending = true;
@@ -443,7 +684,6 @@ export class BoardScene {
   }
 
   private rebuildBatches(now: number): void {
-    const free = this.freeSet();
     const { layers } = this.level;
     for (let z = 0; z < layers; z++) {
       const members: ArrowView[] = [];
@@ -458,6 +698,8 @@ export class BoardScene {
       let mesh = this.batches[z];
       if (geos.length === 0) {
         if (mesh) mesh.visible = false;
+        const gone = this.batchShadows[z];
+        if (gone) gone.visible = false;
         continue;
       }
       const merged = mergeGeometries(geos, false);
@@ -467,7 +709,7 @@ export class BoardScene {
       );
       let o = 0;
       members.forEach((v, i) => {
-        const c = this.displayColor(v, free, now);
+        const c = this.displayColor(v, now);
         const n = geos[i]?.getAttribute('position').count ?? 0;
         for (let k = 0; k < n; k++) {
           colors[o++] = c.r;
@@ -485,10 +727,24 @@ export class BoardScene {
         this.batches[z] = mesh;
       }
       mesh.visible = !this.hiddenLayer(z);
+      if (!this.opts.lowPower) {
+        let shadow = this.batchShadows[z];
+        if (!shadow) {
+          shadow = new THREE.Mesh(merged, this.shadowMat);
+          shadow.position.copy(this.shadowOffset);
+          shadow.renderOrder = -1;
+          this.root.add(shadow);
+          this.batchShadows[z] = shadow;
+        }
+        shadow.geometry = merged;
+        shadow.visible = mesh.visible;
+      }
       for (const v of members) {
         v.batched = true;
         v.tube.visible = false;
         v.head.visible = false;
+        v.shadowTube.visible = false;
+        v.shadowHead.visible = false;
       }
     }
     this.lastRebuild = now;
@@ -500,9 +756,10 @@ export class BoardScene {
     if (this.reduceMotion) return;
     const now = performance.now() / 1000;
     const all = [...this.views.values()];
+    const step = Math.min(ANIM.introStep, ANIM.introMaxSpread / all.length);
     all.forEach((v, i) => {
       v.state = 'intro';
-      v.t0 = now + (i / all.length) * ANIM.introSpread;
+      v.t0 = now + i * step;
     });
   }
 
@@ -514,6 +771,7 @@ export class BoardScene {
     const k = Math.min(1, (now - v.t0) / ANIM.introDraw);
     if (k >= 1) {
       v.state = 'idle';
+      this.dotsDirty = true;
       v.group.visible = !this.hiddenLayer(v.layer);
       this.shape(v, 0, false);
       return;
@@ -527,57 +785,104 @@ export class BoardScene {
     return layer >= this.level.layers - this.layerView.hideFront;
   }
 
-  /** Win ripple from a cell, layer by layer in stacked levels (FR-55). */
-  ripple(from: Vec3, now = performance.now() / 1000): void {
+  /**
+   * Win ripple over the grid dots, from the head cell of the last arrow (FR-55). It waits
+   * until that arrow has slid out, then runs layer by layer in stacked levels.
+   */
+  ripple(from: Vec3): void {
     if (this.reduceMotion) return;
-    const ringGeo = this.rippleGeo;
-    for (let z = 0; z < this.level.layers; z++) {
-      const mesh = new THREE.Mesh(
-        ringGeo,
-        new THREE.MeshBasicMaterial({
-          color: '#5eead4',
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-        }),
-      );
-      const at = this.world({ x: from.x, y: from.y, z });
-      mesh.position.set(at.x, at.y, z * this.layerSpacing() - 0.2);
-      mesh.scale.setScalar(0.01);
-      mesh.visible = false;
-      this.root.add(mesh);
-      this.ripples.push({ mesh, t0: now + z * ANIM.rippleLayerDelay });
-    }
+    this.pendingWin = from;
     this.dirty = true;
   }
 
-  private stepRipples(now: number): boolean {
-    if (this.ripples.length === 0) return false;
-    const reach = Math.hypot(this.level.width, this.level.height);
-    for (let i = this.ripples.length - 1; i >= 0; i--) {
-      const r = this.ripples[i];
-      if (!r) continue;
-      const k = (now - r.t0) / ANIM.ripple;
-      if (k >= 1) {
-        this.root.remove(r.mesh);
-        (r.mesh.material as THREE.Material).dispose();
-        this.ripples.splice(i, 1);
-        continue;
-      }
-      r.mesh.visible = k > 0 && !this.hiddenLayer(this.layerOf(r.mesh));
-      if (k > 0) {
-        r.mesh.scale.setScalar(Math.max(0.01, k * reach));
-        (r.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.7;
-      }
-    }
-    return true;
+  private maxRipple(): number {
+    const { width, height, layers } = this.level;
+    return (
+      Math.hypot(width, height) * ANIM.rippleDelay +
+      (layers - 1) * ANIM.rippleLayerDelay +
+      ANIM.rippleTime
+    );
   }
 
-  private layerOf(mesh: THREE.Mesh): number {
-    return Math.max(
-      0,
-      Math.round((mesh.position.z + 0.2) / this.layerSpacing()),
-    );
+  /**
+   * Grid dots: hidden under idle arrows and near moving ones, fading back in over
+   * `dotFade` (FR-52), and bumping in a ripple on a win. Returns true while it is changing.
+   */
+  private updateDots(now: number): boolean {
+    const dt = Math.min(0.05, now - this.lastDots);
+    this.lastDots = now;
+    const winning = this.win !== null;
+    let moving = false;
+    for (const v of this.views.values()) {
+      if (v.state === 'exit' || v.state === 'bounce') moving = true;
+    }
+    if (!moving && !winning && !this.dotsDirty && !this.dotsFading) {
+      return false;
+    }
+    this.dotsDirty = false;
+    const { width, height, layers } = this.level;
+    const fade = dt / ANIM.dotFade;
+    let fading = false;
+    for (let z = 0; z < layers; z++) {
+      const mesh = this.dots[z];
+      const alpha = this.dotAlpha[z];
+      if (!mesh || !alpha) continue;
+      const still = new Set<string>();
+      const movers: ArrowView[] = [];
+      for (const v of this.views.values()) {
+        if (v.layer !== z) continue;
+        if (v.state === 'idle' || v.state === 'intro') {
+          for (const c of v.arrow.cells) still.add(`${c.x},${c.y}`);
+        } else if (v.state === 'exit' || v.state === 'bounce') {
+          movers.push(v);
+        }
+      }
+      const m = new THREE.Matrix4();
+      const color = new THREE.Color();
+      for (let i = 0; i < width * height; i++) {
+        const x = i % width;
+        const y = Math.floor(i / width);
+        let under = still.has(`${x},${y}`);
+        for (let k = 0; k < movers.length && !under; k++) {
+          under = nearBody(movers[k]?.shown ?? [], x, y, ANIM.dotNear);
+        }
+        const before = alpha[i] ?? 1;
+        const next = under ? 0 : Math.min(1, before + fade);
+        alpha[i] = next;
+        if (next > 0 && next < 1) fading = true;
+        let a = next;
+        let scale = 1;
+        color.copy(DOT_COLOR);
+        if (this.win) {
+          const reach =
+            Math.hypot(x - this.win.from.x, y - this.win.from.y) *
+            ANIM.rippleDelay;
+          const u =
+            (now - this.win.t0 - reach - z * ANIM.rippleLayerDelay) /
+            ANIM.rippleTime;
+          if (u > 0 && u < 1) {
+            const bump = easeOutBack(Math.min(1, u * 1.2)) * (1 - u);
+            scale = 1 + (bump * 0.22) / 0.07;
+            a = 0.9 * (1 - u * 0.5);
+            color.set(POOL[(x + y) % POOL.length] ?? '#ffffff');
+          }
+        }
+        color.lerp(PLATE, 1 - a);
+        mesh.setColorAt(i, color);
+        m.makeScale(a <= 0.005 ? 0 : scale, a <= 0.005 ? 0 : scale, 1);
+        m.setPosition(x - (width - 1) / 2, -(y - (height - 1) / 2), 0);
+        mesh.setMatrixAt(i, m);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+    this.dotsFading = fading;
+    if (this.win && now > this.win.t0 + this.maxRipple()) {
+      this.win = null;
+      this.dotsDirty = true;
+    }
+    this.dirty = true;
+    return true;
   }
 
   // ---- state from the game ----
@@ -589,6 +894,7 @@ export class BoardScene {
 
   setAlive(alive: ReadonlySet<number>): void {
     this.alive = alive;
+    this.dotsDirty = true;
     for (const view of this.views.values()) {
       const on = alive.has(view.arrow.id);
       if (on && (view.state === 'hidden' || view.state === 'exit')) {
@@ -620,9 +926,8 @@ export class BoardScene {
   }
 
   setHint(id: number | null): void {
-    const old = this.hintId === null ? undefined : this.views.get(this.hintId);
-    if (old) this.pulse(old, 0);
     this.hintId = id;
+    this.hintStart = performance.now() / 1000;
     this.dirty = true;
   }
 
@@ -632,7 +937,10 @@ export class BoardScene {
     if (!v || v.state === 'exit') return;
     v.state = 'exit';
     v.t0 = now;
-    if (this.hintId === id) this.setHint(null);
+    // The game removes the arrow first, which hides its group. Show it for the slide.
+    v.group.visible = !this.hiddenLayer(v.layer);
+    this.dotsDirty = true;
+    if (this.hintId === id) this.hintId = null;
     this.dirty = true;
   }
 
@@ -657,7 +965,8 @@ export class BoardScene {
     v.bump = bumpDistance(cells);
     v.impacted = false;
     v.blockerId = blocker;
-    v.flashUntil = now + 0.45;
+    v.flashUntil = now + ANIM.flashFull + ANIM.flashFade;
+    this.dotsDirty = true;
     this.refreshColors();
     this.dirty = true;
   }
@@ -668,53 +977,73 @@ export class BoardScene {
     const { layers } = this.level;
     const firstHidden = layers - this.layerView.hideFront;
     const hide = (layer: number): boolean => layer >= firstHidden;
-    this.plates.forEach((p) => (p.visible = !hide(Number(p.userData.layer))));
-    this.dots.forEach((d) => (d.visible = !hide(Number(d.userData.layer))));
+    this.plates.forEach(
+      (p) =>
+        (p.visible =
+          this.layerView.showLayers && !hide(Number(p.userData.layer))),
+    );
+    this.dots.forEach(
+      (d) =>
+        (d.visible =
+          this.layerView.showDots && !hide(Number(d.userData.layer))),
+    );
     this.batches.forEach((b, z) => (b.visible = !hide(z)));
-    this.plates.forEach((p, z) =>
-      p.position.set(0, 0, z * this.layerSpacing() - 0.3),
-    );
-    this.dots.forEach((d, z) =>
-      d.position.set(0, 0, z * this.layerSpacing() - 0.28),
-    );
+    this.plates.forEach((p, z) => p.position.set(0, 0, this.layerZ(z)));
+    this.dots.forEach((d, z) => d.position.set(0, 0, this.layerZ(z) + 0.01));
     for (const v of this.views.values()) {
       v.group.visible = v.state !== 'hidden' && !hide(v.layer);
     }
     this.dirty = true;
   }
 
-  /** In stacked levels, the ids of arrows that can leave now. Null when there is one layer. */
-  private freeSet(): Set<number> | null {
-    if (this.level.layers <= 1) return null;
-    return new Set(
-      freeArrowIds(
-        this.level,
-        this.level.arrows.filter((a) => this.alive.has(a.id)),
-      ),
-    );
-  }
-
-  private displayColor(
-    v: ArrowView,
-    free: ReadonlySet<number> | null,
-    now: number,
-  ): THREE.Color {
-    const flashing = now < v.flashUntil;
-    const color = flashing ? new THREE.Color(BLOCKED) : v.base.clone();
-    // In stacked levels, blocked arrows are dimmed (FR-62).
-    if (!flashing && free && !free.has(v.arrow.id)) color.lerp(PLATE, DIM);
+  private displayColor(v: ArrowView, now: number): THREE.Color {
+    const color = v.base.clone();
+    if (v.flashUntil > 0) {
+      const t = now - (v.flashUntil - ANIM.flashFull - ANIM.flashFade);
+      if (t >= 0 && t < ANIM.flashFull + ANIM.flashFade) {
+        const k =
+          t < ANIM.flashFull ? 1 : 1 - (t - ANIM.flashFull) / ANIM.flashFade;
+        color.lerp(new THREE.Color(BLOCKED), k);
+      }
+    }
+    if (this.hintActive(v, now)) {
+      const k = Math.sin(((now - this.hintStart) / ANIM.hintTime) * Math.PI);
+      color.lerp(WHITE, ANIM.hintWhite * k);
+    }
     return color;
   }
 
+  /** Colour and head size changes that run every frame: the blocked flash and the hint. */
+  private updateEffects(now: number): boolean {
+    let active = false;
+    for (const v of this.views.values()) {
+      const hint = this.hintActive(v, now);
+      const flash = v.flashUntil > 0 && now < v.flashUntil;
+      const wasHint = v.head.scale.y !== 1;
+      if (!hint && !flash && !wasHint) continue;
+      active = true;
+      v.material.color.copy(this.displayColor(v, now));
+      const k = hint
+        ? Math.sin(((now - this.hintStart) / ANIM.hintTime) * Math.PI)
+        : 0;
+      const s = 1 + ANIM.hintHead * k;
+      v.head.scale.set(1, s, s);
+      if (!hint && wasHint) {
+        v.head.scale.set(1, 1, 1);
+        this.batchDirty = true;
+      }
+    }
+    return active;
+  }
+
   private refreshColors(): void {
-    const free = this.freeSet();
     const now = performance.now() / 1000;
     const xray = this.layerView.xray;
     for (const v of this.views.values()) {
       v.base = new THREE.Color(
         this.oneColor ?? this.colors.get(v.arrow.id) ?? '#ffffff',
       );
-      v.material.color.copy(this.displayColor(v, free, now));
+      v.material.color.copy(this.displayColor(v, now));
       v.material.transparent = xray;
       v.material.opacity = xray ? 0.42 : 1;
       v.material.depthWrite = !xray;
@@ -727,11 +1056,6 @@ export class BoardScene {
     this.dirty = true;
   }
 
-  private pulse(v: ArrowView, amount: number): void {
-    v.head.scale.setScalar(1 + amount * 0.35);
-    v.material.emissive.setScalar(amount * 0.45);
-  }
-
   // ---- loop ----
 
   private loop(): void {
@@ -741,9 +1065,10 @@ export class BoardScene {
     for (const v of this.views.values()) {
       if (v.state === 'exit') {
         animating = true;
-        const d = slideDistance(now - v.t0);
+        const d = slideDistance(now - v.t0, this.slideRate);
         if (d >= v.path.finish) {
           v.state = 'hidden';
+          this.dotsDirty = true;
           v.group.visible = false;
         } else {
           this.shape(v, d, false);
@@ -758,7 +1083,7 @@ export class BoardScene {
       if (now < v.jiggleT0 + ANIM.jiggle) {
         animating = true;
         const k = (now - v.jiggleT0) / ANIM.jiggle;
-        const amp = Math.sin(k * Math.PI * 4) * (1 - k) * ANIM.jiggleSize;
+        const amp = Math.sin(k * Math.PI) * ANIM.jiggleSize;
         v.group.position.copy(v.jiggleDir).multiplyScalar(amp);
       } else if (
         v.jiggleT0 > 0 &&
@@ -778,14 +1103,18 @@ export class BoardScene {
       this.batchDirty = false;
       this.rebuildBatches(now);
     }
-    if (this.stepRipples(now)) animating = true;
-    if (this.hintId !== null) {
-      const h = this.views.get(this.hintId);
-      if (h) {
-        animating = true;
-        this.pulse(h, 0.5 + 0.5 * Math.sin(now * 8));
+    if (this.pendingWin) {
+      let sliding = false;
+      for (const v of this.views.values())
+        if (v.state === 'exit') sliding = true;
+      if (!sliding) {
+        this.win = { t0: now, from: this.pendingWin };
+        this.pendingWin = null;
       }
+      animating = true;
     }
+    if (this.updateEffects(now)) animating = true;
+    if (this.updateDots(now) || this.win) animating = true;
     if (animating || this.dirty) {
       this.dirty = false;
       this.renderFrame();
@@ -815,6 +1144,7 @@ export class BoardScene {
       const k = (t - forward) / back;
       if (k >= 1) {
         v.state = 'idle';
+        this.dotsDirty = true;
         this.shape(v, 0, false);
         return;
       }
@@ -826,15 +1156,34 @@ export class BoardScene {
 
   private renderFrame(): void {
     const { width, height } = this.level;
-    const spread = (this.level.layers - 1) * this.layerSpacing();
-    const radius = (Math.max(width, height) / 2) * 1.25 + spread / 2;
+    const half = new THREE.Vector3(
+      (width + 0.8) / 2,
+      (height + 0.8) / 2,
+      ((this.level.layers - 1) * this.layerSpacing()) / 2,
+    );
+    // Fit the turned board: how far its corners reach sideways and toward the camera.
+    let reach = 0;
+    let front = 0;
+    const corner = new THREE.Vector3();
+    for (const sx of [-1, 1])
+      for (const sy of [-1, 1])
+        for (const sz of [-1, 1]) {
+          corner
+            .set(half.x * sx, half.y * sy, half.z * sz)
+            .applyQuaternion(this.orient);
+          reach = Math.max(reach, Math.abs(corner.x), Math.abs(corner.y));
+          front = Math.max(front, corner.z);
+        }
+    const radius = reach * 1.04;
     const fov = THREE.MathUtils.degToRad(this.camera.fov);
-    const dist = (radius * 1.0) / Math.tan(fov / 2) / this.zoom;
+    const dist = (radius / Math.tan(fov / 2) + front) / this.zoom;
+    const depth = half.length();
     this.camera.position.set(0, 0, dist);
-    this.camera.near = Math.max(0.1, dist - radius * 2);
-    this.camera.far = dist + radius * 2;
+    this.camera.near = Math.max(0.1, dist - depth * 2);
+    this.camera.far = dist + depth * 2;
     this.camera.updateProjectionMatrix();
-    this.root.rotation.set(-this.pitch, this.yaw, 0, 'XYZ');
+    this.root.quaternion.copy(this.orient);
+    this.aimShadows();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -898,8 +1247,9 @@ export class BoardScene {
       }
     }
     if (this.moved) {
-      this.yaw = clamp(this.yaw + (e.clientX - prev.x) * 0.008, -1.4, 1.4);
-      this.pitch = clamp(this.pitch + (e.clientY - prev.y) * 0.008, -0.1, 1.25);
+      this.spin += (e.clientX - prev.x) * 0.008;
+      this.tilt = clamp(this.tilt + (e.clientY - prev.y) * 0.008, -1.45, 1.45);
+      this.updateOrient();
       this.dirty = true;
     }
   };
@@ -944,7 +1294,8 @@ export class BoardScene {
     this.raycaster.setFromCamera(ndc, this.camera);
     const targets: THREE.Object3D[] = [];
     for (const v of this.views.values()) {
-      if (v.group.visible && v.state === 'idle') targets.push(v.pick);
+      if (v.group.visible && v.state === 'idle')
+        targets.push(v.pick, v.pickHead);
     }
     this.root.updateMatrixWorld(true);
     // The nearest hit wins, so the front layer is picked first.
@@ -981,20 +1332,30 @@ export class BoardScene {
     const occ = occupancy(rest);
     const blockedAt = ray.findIndex((c) => occ.has(key(c)));
     const blocked = blockedAt >= 0;
-    // Dots run from the head to the board edge, or stop short of the blocker.
-    const reach = blocked ? blockedAt + 0.5 : ray.length + 0.5;
+    // A dashed line from the head to the blocker, or on past the board edge.
+    const reach = blocked ? blockedAt + 1 : ray.length + 1;
     const head = headOf(v.arrow);
     const mat = blocked ? this.previewBlocked : this.previewOk;
-    for (let d = 0.8; d <= Math.max(reach, 0.8); d += 0.4) {
-      const dot = new THREE.Mesh(this.previewGeo, mat);
-      dot.position.copy(
+    const dir = new THREE.Vector3(
+      v.arrow.dir.x,
+      -v.arrow.dir.y,
+      v.arrow.dir.z,
+    ).normalize();
+    const turn = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(1, 0, 0),
+      dir,
+    );
+    for (let d = 0.75; d < reach; d += 0.5) {
+      const dash = new THREE.Mesh(this.previewGeo, mat);
+      dash.quaternion.copy(turn);
+      dash.position.copy(
         this.world({
           x: head.x + v.arrow.dir.x * d,
           y: head.y + v.arrow.dir.y * d,
           z: head.z + v.arrow.dir.z * d,
         }),
       );
-      this.preview.add(dot);
+      this.preview.add(dash);
     }
     this.dirty = true;
   }
@@ -1003,7 +1364,6 @@ export class BoardScene {
     this.disposed = true;
     window.clearTimeout(this.holdTimer);
     this.previewGeo.dispose();
-    this.rippleGeo.dispose();
     this.batchMat.dispose();
     for (const v of this.views.values()) v.solid?.dispose();
     this.previewOk.dispose();

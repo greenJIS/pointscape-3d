@@ -10,6 +10,8 @@ interface Props {
   readonly hintId: number | null;
   readonly leaving: ReadonlyMap<number, Arrow>;
   readonly lowPower: boolean;
+  /** Exit slide speed, 1 being the demo's. */
+  readonly slideRate: number;
   readonly layerView: LayerView;
   /** Set when the level is won: the cell the clear ripple starts from. */
   readonly rippleFrom: Vec3 | null;
@@ -28,6 +30,7 @@ export function Board3D({
   hintId,
   leaving,
   lowPower,
+  slideRate,
   layerView,
   rippleFrom,
   onTap,
@@ -58,6 +61,9 @@ export function Board3D({
     };
   }, [level, lowPower]);
 
+  useEffect(() => {
+    if (sceneRef.current) sceneRef.current.slideRate = slideRate;
+  }, [slideRate, level, lowPower]);
   useEffect(() => sceneRef.current?.setOneColor(oneColor), [oneColor]);
   useEffect(() => sceneRef.current?.setAlive(alive), [alive]);
   useEffect(() => sceneRef.current?.setLayerView(layerView), [layerView]);
@@ -89,7 +95,7 @@ export function Board3D({
       ref={canvasRef}
       role="img"
       aria-label="Game board"
-      className="aspect-square w-full touch-none rounded-2xl bg-slate-900"
+      className="size-full touch-none rounded-2xl bg-slate-800"
     />
   );
 }

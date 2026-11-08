@@ -173,6 +173,9 @@ export default function App() {
           colorMode={save.settings.colorMode}
           lowPower={save.settings.lowPower}
           sound={save.settings.sound}
+          arrowSpeed={save.settings.arrowSpeed}
+          showLayers={save.settings.showLayers}
+          showDots={save.settings.showDots}
           clearedInDifficulty={clearedCount(progress, difficulty)}
           nextUnlocked={isDifficultyUnlocked(difficulty + 1, progress, false)}
           onHintUsed={onHintUsed}

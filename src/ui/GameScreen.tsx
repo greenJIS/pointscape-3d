@@ -6,7 +6,7 @@ import {
 } from '../core/difficulty';
 import { buildLevel } from '../core/levels';
 import { headOf } from '../core/board';
-import type { Arrow, Vec3 } from '../core/types';
+import type { Arrow, Level, Vec3 } from '../core/types';
 import type { ClearResult } from '../game/progress';
 import {
   arrowsLeft,
@@ -17,10 +17,15 @@ import {
   tap,
   type Session,
 } from '../game/session';
-import type { ColorMode } from '../game/settings';
+import {
+  ARROW_SPEED_RATE,
+  type ArrowSpeed,
+  type ColorMode,
+} from '../game/settings';
 import { Board3D } from '../view/Board3D';
 import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
+import { ANIM, arrowPath, slideDistance } from '../view/path';
 import { playSound } from '../view/sound';
 import { oneColorFor } from '../view/palette';
 import { accentFor } from './accents';
@@ -34,6 +39,9 @@ interface Props {
   readonly colorMode: ColorMode;
   readonly lowPower: boolean;
   readonly sound: boolean;
+  readonly arrowSpeed: ArrowSpeed;
+  readonly showLayers: boolean;
+  readonly showDots: boolean;
   /** Clears needed to open the next difficulty, for the win line. */
   readonly clearedInDifficulty: number;
   readonly nextUnlocked: boolean;
@@ -52,8 +60,19 @@ interface Props {
 
 const SLIDE_MS = 320;
 const FLASH_MS = 400;
-/** Lets the clear ripple play before the win card covers the board. */
-const WIN_DELAY_MS = 800;
+
+/** Seconds the last arrow takes to slide off the board. */
+function slideSeconds(
+  board: Level,
+  arrow: Arrow | undefined,
+  rate: number,
+): number {
+  if (!arrow) return 0;
+  const finish = arrowPath(board, arrow).finish;
+  let t = 0;
+  while (slideDistance(t, rate) < finish) t += 0.01;
+  return t;
+}
 
 export function GameScreen({
   difficulty,
@@ -62,6 +81,9 @@ export function GameScreen({
   colorMode,
   lowPower,
   sound,
+  arrowSpeed,
+  showLayers,
+  showDots,
   clearedInDifficulty,
   nextUnlocked,
   onHintUsed,
@@ -84,6 +106,7 @@ export function GameScreen({
   const [hintId, setHintId] = useState<number | null>(null);
   const [rippleFrom, setRippleFrom] = useState<Vec3 | null>(null);
   const [winShown, setWinShown] = useState(false);
+  const [loseShown, setLoseShown] = useState(false);
   const [paused, setPaused] = useState(false);
   const [result, setResult] = useState<ClearResult | null>(null);
   const [gap, setGap] = useState(0.3);
@@ -95,9 +118,10 @@ export function GameScreen({
   const live = useRef(session);
   const spec = DIFFICULTIES[difficulty];
   const layerView = useMemo<LayerView>(
-    () => ({ gap, hideFront, xray }),
-    [gap, hideFront, xray],
+    () => ({ gap, hideFront, xray, showLayers, showDots }),
+    [gap, hideFront, xray, showLayers, showDots],
   );
+  const slideRate = ARROW_SPEED_RATE[arrowSpeed];
   const accent = accentFor(difficulty);
   const oneColor = colorMode === 'one' ? oneColorFor(difficulty, level) : null;
 
@@ -108,6 +132,9 @@ export function GameScreen({
       live.current = r.session;
       setSession(r.session);
       setHintId(null);
+      if (r.session.status === 'lost') {
+        window.setTimeout(() => setLoseShown(true), ANIM.loseCard * 1000);
+      }
       if (sound) {
         if (r.session.status === 'won') playSound('win');
         else if (r.session.status === 'lost') playSound('lose');
@@ -130,7 +157,10 @@ export function GameScreen({
         if (r.session.status === 'won' && !reported.current) {
           reported.current = true;
           if (arrow) setRippleFrom(headOf(arrow));
-          window.setTimeout(() => setWinShown(true), WIN_DELAY_MS);
+          window.setTimeout(
+            () => setWinShown(true),
+            (slideSeconds(board, arrow, slideRate) + ANIM.winCard) * 1000,
+          );
           setResult(onWin());
         }
       } else {
@@ -138,7 +168,7 @@ export function GameScreen({
         window.setTimeout(() => setFlashId(null), FLASH_MS);
       }
     },
-    [board, onWin, sound],
+    [board, onWin, sound, slideRate],
   );
 
   const onHint = () => {
@@ -154,6 +184,7 @@ export function GameScreen({
     setResult(null);
     setRippleFrom(null);
     setWinShown(false);
+    setLoseShown(false);
     setPaused(false);
     setLeaving(new Map());
     setHintId(null);
@@ -167,17 +198,17 @@ export function GameScreen({
   const nextName = DIFFICULTIES[difficulty + 1]?.name;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-3 p-4 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-6">
-      <header className="flex items-center justify-between gap-3 lg:flex-col lg:items-stretch lg:gap-5 lg:pt-2">
+    <main className="mx-auto flex h-dvh max-w-xl flex-col lg:max-w-none lg:flex-row">
+      <header className="flex items-center justify-between gap-2 px-4 pt-4 lg:w-60 lg:shrink-0 lg:flex-col lg:items-stretch lg:justify-start lg:gap-5 lg:border-r lg:border-slate-800 lg:p-6">
         <button
           type="button"
           onClick={() => setPaused(true)}
           aria-label="Pause"
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-slate-800 font-bold lg:self-start"
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-slate-800 font-bold lg:self-start"
         >
           II
         </button>
-        <div className="leading-tight">
+        <div className="text-center leading-tight lg:text-left">
           <h1 className="font-bold text-white">
             {spec?.name} <span className={accent.text}>{level}</span>
           </h1>
@@ -186,10 +217,10 @@ export function GameScreen({
             {board.width}×{board.height}
           </p>
         </div>
-        <div className="flex items-center gap-3 lg:flex-col lg:items-stretch lg:gap-3">
+        <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-3">
           <span
             aria-label={`${session.lives} lives left`}
-            className="text-lg lg:text-3xl"
+            className="text-lg tracking-tight lg:text-3xl"
           >
             {'❤️'.repeat(session.lives)}
             {'🤍'.repeat(STARTING_LIVES - session.lives)}
@@ -198,40 +229,45 @@ export function GameScreen({
             type="button"
             onClick={onHint}
             disabled={hints <= 0}
-            className="flex h-11 items-center justify-center gap-1 rounded-full bg-slate-800 px-3 text-sm font-semibold disabled:opacity-40"
+            className="flex h-10 items-center justify-center gap-1 rounded-full bg-slate-800 px-3 text-sm font-semibold disabled:opacity-40 lg:h-12"
           >
             💡 {hints}
           </button>
         </div>
       </header>
 
-      {gl ? (
-        <Board3D
-          key={`${difficulty}:${level}:${lowPower}`}
-          level={board}
-          alive={session.alive}
-          oneColor={oneColor}
-          flashId={flashId}
-          hintId={hintId}
-          leaving={leaving}
-          lowPower={lowPower}
-          layerView={layerView}
-          rippleFrom={rippleFrom}
-          onTap={onTap}
-        />
-      ) : (
-        <FlatBoard
-          level={board}
-          alive={session.alive}
-          oneColor={oneColor}
-          flashId={flashId}
-          hintId={hintId}
-          leaving={leaving}
-          onTap={onTap}
-        />
-      )}
+      <div className="@container-size flex min-h-0 flex-1 items-center justify-center p-3">
+        <div className="size-[min(100cqw,100cqh)]">
+          {gl ? (
+            <Board3D
+              key={`${difficulty}:${level}:${lowPower}`}
+              level={board}
+              alive={session.alive}
+              oneColor={oneColor}
+              flashId={flashId}
+              hintId={hintId}
+              leaving={leaving}
+              lowPower={lowPower}
+              slideRate={slideRate}
+              layerView={layerView}
+              rippleFrom={rippleFrom}
+              onTap={onTap}
+            />
+          ) : (
+            <FlatBoard
+              level={board}
+              alive={session.alive}
+              oneColor={oneColor}
+              flashId={flashId}
+              hintId={hintId}
+              leaving={leaving}
+              onTap={onTap}
+            />
+          )}
+        </div>
+      </div>
 
-      <aside className="flex flex-col gap-3 lg:pt-2">
+      <aside className="flex flex-col gap-2 px-4 pb-4 lg:w-68 lg:shrink-0 lg:border-l lg:border-slate-800 lg:p-6">
         <div className="rounded-xl bg-slate-900 p-3 text-sm">
           <div className="flex items-end justify-between">
             <span className="text-slate-400">Arrows left</span>
@@ -302,13 +338,13 @@ export function GameScreen({
         )}
         <p className="hidden rounded-xl bg-slate-900 p-3 text-xs text-slate-400 lg:block">
           <b className="text-slate-200">Tip</b>
-          <br />A blocked arrow costs a heart, once. Look for arrows with a
-          clear path first.
+          <br />
+          Hold an arrow to preview its path without risking a heart.
         </p>
         <button
           type="button"
           onClick={onRestart}
-          className="self-center rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 lg:self-stretch"
+          className="self-center rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 lg:mt-auto lg:self-stretch"
         >
           Restart level
         </button>
@@ -389,7 +425,7 @@ export function GameScreen({
         </Modal>
       )}
 
-      {session.status === 'lost' && (
+      {session.status === 'lost' && loseShown && (
         <Modal>
           <div className="text-5xl">💔</div>
           <h2 className="mt-2 text-2xl font-bold text-white">Out of hearts</h2>
