@@ -9,3 +9,49 @@
   --color-pool-magenta: #e879f9;
   --color-blocked: #f87171;
 }
+
+/* 3D wordmark on Home and the name screen. The extrusion is stacked text-shadow. */
+@utility logo-word {
+  color: #f1f5f9;
+  text-shadow:
+    1px 1px 0 #64748b,
+    2px 2px 0 #64748b,
+    3px 3px 0 #64748b,
+    4px 4px 0 #64748b,
+    6px 8px 10px rgb(0 0 0 / 0.5);
+  transform: rotateX(12deg);
+}
+
+@utility logo-3d {
+  color: #5eead4;
+  text-shadow:
+    1px 1px 0 #14b8a6,
+    2px 2px 0 #14b8a6,
+    3px 3px 0 #14b8a6,
+    4px 4px 0 #0f766e,
+    5px 5px 0 #0f766e,
+    6px 6px 0 #0f766e,
+    7px 7px 0 #0f766e,
+    8px 8px 0 #115e59,
+    9px 9px 0 #115e59,
+    10px 10px 0 #134e4a,
+    12px 16px 18px rgb(0 0 0 / 0.65);
+  transform: rotateX(16deg) rotateY(-14deg);
+  animation: logo-sway 3.6s ease-in-out infinite;
+}
+
+@keyframes logo-sway {
+  0%,
+  100% {
+    transform: rotateX(16deg) rotateY(-14deg);
+  }
+  50% {
+    transform: rotateX(10deg) rotateY(14deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-3d {
+    animation: none;
+  }
+}
