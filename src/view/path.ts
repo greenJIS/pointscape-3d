@@ -86,6 +86,8 @@ export const ANIM = {
   /** Blocker jiggle length in seconds and size in cells. */
   jiggle: 0.28,
   jiggleSize: 0.14,
+  /** Hold this long, in seconds, to preview an arrow's path (FR-54). */
+  hold: 0.35,
 } as const;
 
 /** Distance travelled after `t` seconds of an exit slide. */
