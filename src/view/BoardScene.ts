@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { blockerOf, exitRay, freeArrowIds, occupancy } from '../core/board';
+import {
+  blockerOf,
+  exitRay,
+  freeArrowIds,
+  headOf,
+  occupancy,
+} from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { key } from '../core/vec';
 import { roundCorners } from './corners';
@@ -123,6 +129,16 @@ export class BoardScene {
   private moved = false;
   private pinchStart = 0;
   private pinchZoom = 1;
+  private holdTimer = 0;
+  private previewing = false;
+  private readonly preview = new THREE.Group();
+  private readonly previewGeo = new THREE.SphereGeometry(0.11, 10, 10);
+  private readonly previewOk = new THREE.MeshBasicMaterial({
+    color: '#4ade80',
+  });
+  private readonly previewBlocked = new THREE.MeshBasicMaterial({
+    color: BLOCKED,
+  });
 
   constructor(canvas: HTMLCanvasElement, level: Level, opts: SceneOptions) {
     this.canvas = canvas;
@@ -140,6 +156,7 @@ export class BoardScene {
     );
     this.scene.background = new THREE.Color('#0f172a');
     this.scene.add(this.root);
+    this.root.add(this.preview);
     this.setupLights();
     this.buildPlates();
     for (const arrow of level.arrows) this.addArrow(arrow);
@@ -568,8 +585,14 @@ export class BoardScene {
     if (this.pointers.size === 1) {
       this.downAt = { x: e.clientX, y: e.clientY };
       this.moved = false;
+      this.previewing = false;
+      this.holdTimer = window.setTimeout(
+        () => this.startPreview(e.clientX, e.clientY),
+        ANIM.hold * 1000,
+      );
     } else if (this.pointers.size === 2) {
       this.moved = true;
+      this.endHold();
       this.pinchStart = this.pinchDistance();
       this.pinchZoom = this.zoom;
     }
@@ -590,7 +613,10 @@ export class BoardScene {
         e.clientX - this.downAt.x,
         e.clientY - this.downAt.y,
       );
-      if (far > 6) this.moved = true;
+      if (far > 6) {
+        this.moved = true;
+        this.endHold();
+      }
     }
     if (this.moved) {
       this.yaw = clamp(this.yaw + (e.clientX - prev.x) * 0.008, -1.4, 1.4);
@@ -600,13 +626,16 @@ export class BoardScene {
   };
 
   private readonly onUp = (e: PointerEvent): void => {
-    const wasTap = !this.moved && this.pointers.size === 1;
+    // A hold that showed a preview is not a tap (FR-54).
+    const wasTap = !this.moved && !this.previewing && this.pointers.size === 1;
+    this.endHold();
     this.pointers.delete(e.pointerId);
     if (wasTap) this.tapAt(e.clientX, e.clientY);
     if (this.pointers.size === 0) this.downAt = null;
   };
 
   private readonly onCancel = (e: PointerEvent): void => {
+    this.endHold();
     this.pointers.delete(e.pointerId);
     if (this.pointers.size === 0) this.downAt = null;
   };
@@ -626,7 +655,7 @@ export class BoardScene {
     this.dirty = true;
   }
 
-  private tapAt(clientX: number, clientY: number): void {
+  private pickAt(clientX: number, clientY: number): number | undefined {
     const rect = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(
       ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -641,11 +670,61 @@ export class BoardScene {
     // The nearest hit wins, so the front layer is picked first.
     const hit = this.raycaster.intersectObjects(targets, false)[0];
     const id: unknown = hit?.object.userData.arrowId;
-    if (typeof id === 'number') this.opts.onTap(id);
+    return typeof id === 'number' ? id : undefined;
+  }
+
+  private tapAt(clientX: number, clientY: number): void {
+    const id = this.pickAt(clientX, clientY);
+    if (id !== undefined) this.opts.onTap(id);
+  }
+
+  // ---- hold to preview (FR-54) ----
+
+  /** Stops a pending hold and removes any preview. */
+  private endHold(): void {
+    window.clearTimeout(this.holdTimer);
+    if (this.preview.children.length > 0) {
+      this.preview.clear();
+      this.dirty = true;
+    }
+    // `previewing` stays set until the pointer lifts, so release does not tap.
+  }
+
+  private startPreview(clientX: number, clientY: number): void {
+    if (this.moved || this.pointers.size !== 1) return;
+    const id = this.pickAt(clientX, clientY);
+    const v = id === undefined ? undefined : this.views.get(id);
+    if (!v) return;
+    this.previewing = true;
+    const rest = this.level.arrows.filter((a) => this.alive.has(a.id));
+    const ray = exitRay(this.level, v.arrow);
+    const occ = occupancy(rest);
+    const blockedAt = ray.findIndex((c) => occ.has(key(c)));
+    const blocked = blockedAt >= 0;
+    // Dots run from the head to the board edge, or stop short of the blocker.
+    const reach = blocked ? blockedAt + 0.5 : ray.length + 0.5;
+    const head = headOf(v.arrow);
+    const mat = blocked ? this.previewBlocked : this.previewOk;
+    for (let d = 0.8; d <= Math.max(reach, 0.8); d += 0.4) {
+      const dot = new THREE.Mesh(this.previewGeo, mat);
+      dot.position.copy(
+        this.world({
+          x: head.x + v.arrow.dir.x * d,
+          y: head.y + v.arrow.dir.y * d,
+          z: head.z + v.arrow.dir.z * d,
+        }),
+      );
+      this.preview.add(dot);
+    }
+    this.dirty = true;
   }
 
   dispose(): void {
     this.disposed = true;
+    window.clearTimeout(this.holdTimer);
+    this.previewGeo.dispose();
+    this.previewOk.dispose();
+    this.previewBlocked.dispose();
     cancelAnimationFrame(this.raf);
     const c = this.canvas;
     c.removeEventListener('pointerdown', this.onDown);
