@@ -1,3 +1,6 @@
+import { createRng } from '../core/rng';
+import { seedFor } from '../core/levels';
+
 /** The five arrow colours (FR-31). Same values as the `@theme` tokens in index.css. */
 export const POOL: readonly string[] = [
   '#fb923c',
@@ -8,6 +11,10 @@ export const POOL: readonly string[] = [
 ];
 
 export const BLOCKED = '#f87171';
+
+/** One-color mode: one pool colour per level, the same every time for that level (FR-35). */
+export const oneColorFor = (difficulty: number, level: number): string =>
+  createRng(seedFor(difficulty, level) ^ 0x9e3779b9).pick(POOL);
 
 /** Placeholder colouring until neighbour colouring lands (FR-36). */
 export const colorFor = (arrowId: number, oneColor: string | null): string =>
