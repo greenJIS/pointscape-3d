@@ -1,7 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { DIFFICULTIES } from '../core/difficulty';
+import {
+  DIFFICULTIES,
+  LEVELS_PER_DIFFICULTY,
+  UNLOCK_AFTER,
+} from '../core/difficulty';
 import { buildLevel } from '../core/levels';
 import type { Arrow } from '../core/types';
+import type { ClearResult } from '../game/progress';
 import {
   arrowsLeft,
   hintFor,
@@ -11,15 +16,27 @@ import {
   tap,
   type Session,
 } from '../game/session';
+import type { ColorMode } from '../game/settings';
 import { FlatBoard } from '../view/FlatBoard';
+import { oneColorFor } from '../view/palette';
+import { accentFor } from './accents';
+import { Modal, ModalButton } from './Modal';
 
 interface Props {
   readonly difficulty: number;
   readonly level: number;
   readonly hints: number;
+  readonly colorMode: ColorMode;
+  /** Clears needed to open the next difficulty, for the win line. */
+  readonly clearedInDifficulty: number;
+  readonly nextUnlocked: boolean;
   readonly onHintUsed: () => void;
-  readonly onWin: () => void;
+  /** Called once when the level is won. Returns what the clear earned. */
+  readonly onWin: () => ClearResult;
   readonly onNext: () => void;
+  readonly onLevels: () => void;
+  readonly onSettings: () => void;
+  readonly onHome: () => void;
 }
 
 const SLIDE_MS = 320;
@@ -29,9 +46,15 @@ export function GameScreen({
   difficulty,
   level,
   hints,
+  colorMode,
+  clearedInDifficulty,
+  nextUnlocked,
   onHintUsed,
   onWin,
   onNext,
+  onLevels,
+  onSettings,
+  onHome,
 }: Props) {
   const board = useMemo(
     () => buildLevel(difficulty, level),
@@ -41,23 +64,23 @@ export function GameScreen({
   const [leaving, setLeaving] = useState<ReadonlyMap<number, Arrow>>(new Map());
   const [flashId, setFlashId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [result, setResult] = useState<ClearResult | null>(null);
   const reported = useRef(false);
   // Latest session, readable by a tap that lands before React re-renders.
   const live = useRef(session);
-  const commit = (next: Session) => {
-    live.current = next;
-    setSession(next);
-  };
   const spec = DIFFICULTIES[difficulty];
+  const accent = accentFor(difficulty);
+  const oneColor = colorMode === 'one' ? oneColorFor(difficulty, level) : null;
 
   const onTap = useCallback(
     (arrowId: number) => {
-      const result = tap(live.current, arrowId);
-      if (result.outcome === 'ignored') return;
-      live.current = result.session;
-      setSession(result.session);
+      const r = tap(live.current, arrowId);
+      if (r.outcome === 'ignored') return;
+      live.current = r.session;
+      setSession(r.session);
       setHintId(null);
-      if (result.outcome === 'exit') {
+      if (r.outcome === 'exit') {
         const arrow = board.arrows.find((a) => a.id === arrowId);
         if (arrow) {
           setLeaving((m) => new Map(m).set(arrowId, arrow));
@@ -71,9 +94,9 @@ export function GameScreen({
             SLIDE_MS,
           );
         }
-        if (result.session.status === 'won' && !reported.current) {
+        if (r.session.status === 'won' && !reported.current) {
           reported.current = true;
-          onWin();
+          setResult(onWin());
         }
       } else {
         setFlashId(arrowId);
@@ -84,7 +107,7 @@ export function GameScreen({
   );
 
   const onHint = () => {
-    if (hints <= 0 || session.status !== 'playing') return;
+    if (hints <= 0 || live.current.status !== 'playing') return;
     const id = hintFor(live.current);
     if (id === undefined) return;
     onHintUsed();
@@ -93,26 +116,44 @@ export function GameScreen({
 
   const onRestart = () => {
     reported.current = false;
+    setResult(null);
+    setPaused(false);
     setLeaving(new Map());
-    commit(restart(live.current));
+    setHintId(null);
+    const fresh = restart(live.current);
+    live.current = fresh;
+    setSession(fresh);
   };
 
   const left = arrowsLeft(session).length;
+  const lastLevel = level >= LEVELS_PER_DIFFICULTY;
+  const nextName = DIFFICULTIES[difficulty + 1]?.name;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 p-4">
-      <header className="flex items-center justify-between">
-        <div>
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-3 p-4 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-6">
+      <header className="flex items-center justify-between gap-3 lg:flex-col lg:items-stretch lg:gap-5 lg:pt-2">
+        <button
+          type="button"
+          onClick={() => setPaused(true)}
+          aria-label="Pause"
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-slate-800 font-bold lg:self-start"
+        >
+          II
+        </button>
+        <div className="leading-tight">
           <h1 className="font-bold text-white">
-            {spec?.name} {level}
+            {spec?.name} <span className={accent.text}>{level}</span>
           </h1>
           <p className="text-xs text-slate-400">
             {spec?.layers} layer{spec && spec.layers > 1 ? 's' : ''} ·{' '}
-            {board.width}×{board.height} · {left} left
+            {board.width}×{board.height}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span aria-label={`${session.lives} lives left`} className="text-lg">
+        <div className="flex items-center gap-3 lg:flex-col lg:items-stretch lg:gap-3">
+          <span
+            aria-label={`${session.lives} lives left`}
+            className="text-lg lg:text-3xl"
+          >
             {'❤️'.repeat(session.lives)}
             {'🤍'.repeat(STARTING_LIVES - session.lives)}
           </span>
@@ -120,7 +161,7 @@ export function GameScreen({
             type="button"
             onClick={onHint}
             disabled={hints <= 0}
-            className="rounded-full bg-slate-800 px-3 py-2 text-sm font-semibold disabled:opacity-40"
+            className="flex h-11 items-center justify-center gap-1 rounded-full bg-slate-800 px-3 text-sm font-semibold disabled:opacity-40"
           >
             💡 {hints}
           </button>
@@ -130,48 +171,118 @@ export function GameScreen({
       <FlatBoard
         level={board}
         alive={session.alive}
-        oneColor={null}
+        oneColor={oneColor}
         flashId={flashId}
         hintId={hintId}
         leaving={leaving}
         onTap={onTap}
       />
 
-      <button
-        type="button"
-        onClick={onRestart}
-        className="self-center rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300"
-      >
-        Restart level
-      </button>
-
-      {session.status !== 'playing' && (
-        <div className="fixed inset-0 z-10 grid place-items-center bg-slate-950/80 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl">
-            <h2 className="text-2xl font-bold text-white">
-              {session.status === 'won' ? 'Cleared!' : 'Out of hearts'}
-            </h2>
-            <div className="mt-5 flex flex-col gap-2">
-              {session.status === 'won' ? (
-                <button
-                  type="button"
-                  onClick={onNext}
-                  className="rounded-2xl bg-teal-300 py-3 font-bold text-slate-950"
-                >
-                  Next level
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onRestart}
-                  className="rounded-2xl bg-teal-300 py-3 font-bold text-slate-950"
-                >
-                  Try again
-                </button>
-              )}
-            </div>
+      <aside className="flex flex-col gap-3 lg:pt-2">
+        <div className="rounded-xl bg-slate-900 p-3 text-sm">
+          <div className="flex items-end justify-between">
+            <span className="text-slate-400">Arrows left</span>
+            <b className="text-3xl text-white">{left}</b>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className={`h-full rounded-full ${accent.bg}`}
+              style={{
+                width: `${((board.arrows.length - left) / board.arrows.length) * 100}%`,
+              }}
+            />
           </div>
         </div>
+        <p className="hidden rounded-xl bg-slate-900 p-3 text-xs text-slate-400 lg:block">
+          <b className="text-slate-200">Tip</b>
+          <br />A blocked arrow costs a heart, once. Look for arrows with a
+          clear path first.
+        </p>
+        <button
+          type="button"
+          onClick={onRestart}
+          className="self-center rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 lg:self-stretch"
+        >
+          Restart level
+        </button>
+      </aside>
+
+      {paused && session.status === 'playing' && (
+        <Modal>
+          <h2 className="text-2xl font-bold text-white">Paused</h2>
+          <div className="mt-5 flex flex-col gap-2">
+            <ModalButton
+              label="Resume"
+              primary
+              onClick={() => setPaused(false)}
+            />
+            <ModalButton label="Restart level" onClick={onRestart} />
+            <ModalButton label="Levels" onClick={onLevels} />
+            <ModalButton
+              label="Settings"
+              onClick={() => {
+                setPaused(false);
+                onSettings();
+              }}
+            />
+            <ModalButton label="Home" onClick={onHome} />
+          </div>
+        </Modal>
+      )}
+
+      {session.status === 'won' && result && (
+        <Modal>
+          <div
+            className={`mx-auto mb-2 grid size-16 place-items-center rounded-full text-3xl text-slate-950 ${accent.bg}`}
+          >
+            ✓
+          </div>
+          <h2 className="text-2xl font-bold text-white">Cleared!</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            {spec?.name} {level}
+          </p>
+          {result.hintGifted && (
+            <p className="mt-3 rounded-xl bg-slate-800 p-2 text-sm font-semibold text-teal-300">
+              +1 hint earned
+            </p>
+          )}
+          {result.unlocked !== undefined ? (
+            <p className="mt-3 rounded-xl bg-amber-400 p-2 text-sm font-bold text-slate-950">
+              {DIFFICULTIES[result.unlocked]?.name} unlocked!
+            </p>
+          ) : (
+            nextName &&
+            !nextUnlocked && (
+              <p className="mt-3 text-xs text-slate-400">
+                {Math.min(clearedInDifficulty, UNLOCK_AFTER)} / {UNLOCK_AFTER}{' '}
+                to unlock {nextName}
+              </p>
+            )
+          )}
+          <div className="mt-5 flex flex-col gap-2">
+            {lastLevel ? (
+              <ModalButton label="Levels" primary onClick={onLevels} />
+            ) : (
+              <ModalButton label="Next level" primary onClick={onNext} />
+            )}
+            <ModalButton label="Play again" onClick={onRestart} />
+            {!lastLevel && <ModalButton label="Levels" onClick={onLevels} />}
+          </div>
+        </Modal>
+      )}
+
+      {session.status === 'lost' && (
+        <Modal>
+          <div className="text-5xl">💔</div>
+          <h2 className="mt-2 text-2xl font-bold text-white">Out of hearts</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Look for arrows with a clear path first.
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <ModalButton label="Try again" primary onClick={onRestart} />
+            <ModalButton label="Levels" onClick={onLevels} />
+          </div>
+        </Modal>
       )}
     </main>
   );
