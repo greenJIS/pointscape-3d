@@ -26,7 +26,14 @@ describe('saving', () => {
     const store = memoryStore();
     const save = {
       progress: recordClear(emptyProgress(), 0, 1).progress,
-      settings: { colorMode: 'one' as const, sound: false, lowPower: true },
+      settings: {
+        colorMode: 'one' as const,
+        arrowSpeed: 'fast' as const,
+        showLayers: false,
+        showDots: true,
+        sound: false,
+        lowPower: true,
+      },
       name: 'Sam',
     };
     expect(writeSave(store, save)).toBe(true);
@@ -85,7 +92,14 @@ describe('reset progress', () => {
   it('keeps the name and settings (FR-67)', () => {
     const save = {
       progress: recordClear(emptyProgress(), 0, 1).progress,
-      settings: { colorMode: 'one' as const, sound: false, lowPower: true },
+      settings: {
+        colorMode: 'one' as const,
+        arrowSpeed: 'fast' as const,
+        showLayers: false,
+        showDots: true,
+        sound: false,
+        lowPower: true,
+      },
       name: 'Sam',
     };
     const after = resetProgress(save);

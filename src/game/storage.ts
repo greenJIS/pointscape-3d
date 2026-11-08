@@ -72,6 +72,16 @@ export function parseSave(text: string | null): SaveData {
   const s = isRecord(raw.settings) ? raw.settings : {};
   const settings: Settings = {
     colorMode: s.colorMode === 'one' ? 'one' : 'multi',
+    arrowSpeed:
+      s.arrowSpeed === 'slow' || s.arrowSpeed === 'fast'
+        ? s.arrowSpeed
+        : 'normal',
+    showLayers:
+      typeof s.showLayers === 'boolean'
+        ? s.showLayers
+        : base.settings.showLayers,
+    showDots:
+      typeof s.showDots === 'boolean' ? s.showDots : base.settings.showDots,
     sound: typeof s.sound === 'boolean' ? s.sound : base.settings.sound,
     lowPower:
       typeof s.lowPower === 'boolean' ? s.lowPower : base.settings.lowPower,

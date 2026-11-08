@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MAX_NAME_LENGTH, cleanName } from '../game/playerName';
-import type { ColorMode, Settings } from '../game/settings';
+import type { ArrowSpeed, ColorMode, Settings } from '../game/settings';
 import { POOL } from '../view/palette';
 import { Modal, ModalButton } from './Modal';
 
@@ -41,6 +41,12 @@ function Switch({
     </button>
   );
 }
+
+const SPEEDS: readonly { id: ArrowSpeed; label: string }[] = [
+  { id: 'slow', label: 'Slow' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'fast', label: 'Fast' },
+];
 
 const MODES: readonly { id: ColorMode; label: string; hint: string }[] = [
   { id: 'multi', label: 'Multi-color', hint: 'All five colours' },
@@ -135,6 +141,40 @@ export function SettingsScreen({
           </section>
 
           <section className="rounded-2xl bg-slate-900 p-4">
+            <p className="mb-2 font-semibold text-white">Arrow speed</p>
+            <div className="grid grid-cols-3 gap-2">
+              {SPEEDS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-pressed={settings.arrowSpeed === s.id}
+                  onClick={() => onSettings({ ...settings, arrowSpeed: s.id })}
+                  className={`rounded-xl border-2 p-2 text-sm font-semibold ${settings.arrowSpeed === s.id ? 'border-teal-300 bg-slate-800' : 'border-slate-800 bg-slate-950'}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              How fast a tapped arrow slides off the board.
+            </p>
+          </section>
+
+          <section className="rounded-2xl bg-slate-900 p-4">
+            <Switch
+              label="Show layers"
+              on={settings.showLayers}
+              onChange={() =>
+                onSettings({ ...settings, showLayers: !settings.showLayers })
+              }
+            />
+            <Switch
+              label="Show grid dots"
+              on={settings.showDots}
+              onChange={() =>
+                onSettings({ ...settings, showDots: !settings.showDots })
+              }
+            />
             <Switch
               label="Sound"
               on={settings.sound}
