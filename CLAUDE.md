@@ -46,6 +46,11 @@ Three layers. Dependencies point downward only.
 - Clearing 10 levels (`UNLOCK_AFTER`) of a difficulty opens the next one.
 - Player name: asked once, random animal name if skipped, editable in Settings, never cleared by Reset progress.
 - Animation numbers come from guesses at the original game. They are meant to be tuned, so keep them in one table.
+- The 3D view draws idle arrows as one merged mesh per layer (`BoardScene.syncBatched`). An arrow leaves the merged
+  mesh while it animates, flashes, jiggles or pulses. Pick meshes sit on their own three.js layer so the camera skips
+  them.
+- Sound is synthesized with Web Audio in `src/view/sound.ts`. No audio files ship.
+- Arrow count per level comes from `ARROW_RANGE` in `src/core/levels.ts`, so it rises with the level number.
 
 ## Conventions
 
