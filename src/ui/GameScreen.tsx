@@ -17,6 +17,8 @@ import {
   type Session,
 } from '../game/session';
 import type { ColorMode } from '../game/settings';
+import { Board3D } from '../view/Board3D';
+import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
 import { oneColorFor } from '../view/palette';
 import { accentFor } from './accents';
@@ -27,6 +29,7 @@ interface Props {
   readonly level: number;
   readonly hints: number;
   readonly colorMode: ColorMode;
+  readonly lowPower: boolean;
   /** Clears needed to open the next difficulty, for the win line. */
   readonly clearedInDifficulty: number;
   readonly nextUnlocked: boolean;
@@ -47,6 +50,7 @@ export function GameScreen({
   level,
   hints,
   colorMode,
+  lowPower,
   clearedInDifficulty,
   nextUnlocked,
   onHintUsed,
@@ -66,10 +70,18 @@ export function GameScreen({
   const [hintId, setHintId] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [result, setResult] = useState<ClearResult | null>(null);
+  const [gap, setGap] = useState(0.3);
+  const [hideFront, setHideFront] = useState(0);
+  const [xray, setXray] = useState(false);
+  const [gl] = useState(webglAvailable);
   const reported = useRef(false);
   // Latest session, readable by a tap that lands before React re-renders.
   const live = useRef(session);
   const spec = DIFFICULTIES[difficulty];
+  const layerView = useMemo<LayerView>(
+    () => ({ gap, hideFront, xray }),
+    [gap, hideFront, xray],
+  );
   const accent = accentFor(difficulty);
   const oneColor = colorMode === 'one' ? oneColorFor(difficulty, level) : null;
 
@@ -168,15 +180,30 @@ export function GameScreen({
         </div>
       </header>
 
-      <FlatBoard
-        level={board}
-        alive={session.alive}
-        oneColor={oneColor}
-        flashId={flashId}
-        hintId={hintId}
-        leaving={leaving}
-        onTap={onTap}
-      />
+      {gl ? (
+        <Board3D
+          key={`${difficulty}:${level}:${lowPower}`}
+          level={board}
+          alive={session.alive}
+          oneColor={oneColor}
+          flashId={flashId}
+          hintId={hintId}
+          leaving={leaving}
+          lowPower={lowPower}
+          layerView={layerView}
+          onTap={onTap}
+        />
+      ) : (
+        <FlatBoard
+          level={board}
+          alive={session.alive}
+          oneColor={oneColor}
+          flashId={flashId}
+          hintId={hintId}
+          leaving={leaving}
+          onTap={onTap}
+        />
+      )}
 
       <aside className="flex flex-col gap-3 lg:pt-2">
         <div className="rounded-xl bg-slate-900 p-3 text-sm">
@@ -193,6 +220,60 @@ export function GameScreen({
             />
           </div>
         </div>
+        {board.layers > 1 && (
+          <div className="rounded-xl bg-slate-900 p-3 text-xs text-slate-400">
+            <p className="mb-2 font-semibold text-slate-300">
+              Layers {board.layers}
+            </p>
+            <label className="flex items-center gap-2">
+              Layer gap
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={gap}
+                onChange={(e) => setGap(Number(e.target.value))}
+                className="flex-1"
+              />
+            </label>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1">
+                Hide front layers
+                <button
+                  type="button"
+                  aria-label="Hide fewer layers"
+                  onClick={() => setHideFront((n) => Math.max(0, n - 1))}
+                  className="size-6 rounded-sm bg-slate-800"
+                >
+                  -
+                </button>
+                <b>{hideFront}</b>
+                <button
+                  type="button"
+                  aria-label="Hide more layers"
+                  onClick={() =>
+                    setHideFront((n) => Math.min(board.layers - 1, n + 1))
+                  }
+                  className="size-6 rounded-sm bg-slate-800"
+                >
+                  +
+                </button>
+              </span>
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={xray}
+                  onChange={(e) => setXray(e.target.checked)}
+                />
+                X-ray
+              </label>
+            </div>
+            <p className="mt-2 text-slate-500">
+              Drag to tilt. Pinch or scroll to zoom.
+            </p>
+          </div>
+        )}
         <p className="hidden rounded-xl bg-slate-900 p-3 text-xs text-slate-400 lg:block">
           <b className="text-slate-200">Tip</b>
           <br />A blocked arrow costs a heart, once. Look for arrows with a
