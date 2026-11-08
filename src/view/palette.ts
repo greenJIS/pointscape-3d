@@ -1,5 +1,7 @@
 import { createRng } from '../core/rng';
 import { seedFor } from '../core/levels';
+import { assignColors } from '../core/coloring';
+import type { Level } from '../core/types';
 
 /** The five arrow colours (FR-31). Same values as the `@theme` tokens in index.css. */
 export const POOL: readonly string[] = [
@@ -16,6 +18,11 @@ export const BLOCKED = '#f87171';
 export const oneColorFor = (difficulty: number, level: number): string =>
   createRng(seedFor(difficulty, level) ^ 0x9e3779b9).pick(POOL);
 
-/** Placeholder colouring until neighbour colouring lands (FR-36). */
-export const colorFor = (arrowId: number, oneColor: string | null): string =>
-  oneColor ?? POOL[arrowId % POOL.length] ?? '#ffffff';
+/** Colour per arrow id with touching arrows kept apart where the pool allows (FR-36). */
+export const arrowColors = (level: Level): Map<number, string> => {
+  const seed = level.width * 131 + level.layers * 17 + level.arrows.length;
+  const picked = assignColors(level, POOL.length, seed);
+  const result = new Map<number, string>();
+  for (const [id, i] of picked) result.set(id, POOL[i] ?? '#ffffff');
+  return result;
+};

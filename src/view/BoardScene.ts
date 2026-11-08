@@ -4,7 +4,7 @@ import { blockerOf, exitRay, freeArrowIds, occupancy } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { key } from '../core/vec';
 import { roundCorners } from './corners';
-import { BLOCKED, colorFor } from './palette';
+import { BLOCKED, arrowColors } from './palette';
 import {
   ANIM,
   arrowPath,
@@ -107,6 +107,7 @@ export class BoardScene {
   private readonly level: Level;
   private readonly opts: SceneOptions;
   private oneColor: string | null = null;
+  private readonly colors: Map<number, string>;
   private alive: ReadonlySet<number>;
   private layerView: LayerView = { gap: 0.3, hideFront: 0, xray: false };
   private hintId: number | null = null;
@@ -126,6 +127,7 @@ export class BoardScene {
   constructor(canvas: HTMLCanvasElement, level: Level, opts: SceneOptions) {
     this.canvas = canvas;
     this.level = level;
+    this.colors = arrowColors(level);
     this.opts = opts;
     this.alive = new Set(level.arrows.map((a) => a.id));
     this.renderer = new THREE.WebGLRenderer({
@@ -423,7 +425,9 @@ export class BoardScene {
       : null;
     const now = performance.now() / 1000;
     for (const v of this.views.values()) {
-      v.base = new THREE.Color(colorFor(v.arrow.id, this.oneColor));
+      v.base = new THREE.Color(
+        this.oneColor ?? this.colors.get(v.arrow.id) ?? '#ffffff',
+      );
       const flashing = now < v.flashUntil;
       const color = flashing ? new THREE.Color(BLOCKED) : v.base.clone();
       // In stacked levels, blocked arrows are dimmed (FR-62).

@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import type { Arrow, Level } from '../core/types';
-import { colorFor, BLOCKED } from './palette';
+import { arrowColors, BLOCKED } from './palette';
 
 interface Props {
   readonly level: Level;
@@ -57,6 +58,7 @@ export function FlatBoard({
   leaving,
   onTap,
 }: Props) {
+  const colors = useMemo(() => arrowColors(level), [level]);
   const shown = [...level.arrows]
     .filter((a) => alive.has(a.id) || leaving.has(a.id))
     .sort((a, b) => (a.cells[0]?.z ?? 0) - (b.cells[0]?.z ?? 0));
@@ -81,7 +83,9 @@ export function FlatBoard({
       {shown.map((arrow) => {
         const out = leaving.get(arrow.id);
         const color =
-          flashId === arrow.id ? BLOCKED : colorFor(arrow.id, oneColor);
+          flashId === arrow.id
+            ? BLOCKED
+            : (oneColor ?? colors.get(arrow.id) ?? '#ffffff');
         const points = arrow.cells.map((_, i) => pt(arrow, i)).join(' ');
         return (
           <g
