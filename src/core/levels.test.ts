@@ -27,6 +27,17 @@ describe('levelParams', () => {
     }
   });
 
+  it('never lowers the arrow target as the level number rises', () => {
+    for (let d = 0; d < DIFFICULTIES.length; d++) {
+      let prev = 0;
+      for (let l = 1; l <= LEVELS_PER_DIFFICULTY; l++) {
+        const n = levelParams(d, l).arrows;
+        expect(n).toBeGreaterThanOrEqual(prev);
+        prev = n;
+      }
+    }
+  });
+
   it('gives every one of the 500 levels its own seed', () => {
     const seeds = new Set<number>();
     for (let d = 0; d < DIFFICULTIES.length; d++) {
@@ -59,4 +70,29 @@ describe('buildLevel', () => {
       }
     },
   );
+});
+
+describe('difficulty curve', () => {
+  const mean = (d: number, from: number, to: number): number => {
+    let sum = 0;
+    for (let l = from; l <= to; l++) sum += buildLevel(d, l).arrows.length;
+    return sum / (to - from + 1);
+  };
+
+  it.each([0, 1, 2, 3, 4])(
+    'difficulty %i has more arrows at the end than at the start',
+    (d) => {
+      expect(mean(d, 91, 100)).toBeGreaterThan(mean(d, 1, 10));
+    },
+  );
+
+  it('every fifth level of every difficulty is valid and solvable', () => {
+    for (let d = 0; d < DIFFICULTIES.length; d++) {
+      for (let l = 5; l <= LEVELS_PER_DIFFICULTY; l += 5) {
+        const level = buildLevel(d, l);
+        expect(validateLevel(level)).toEqual([]);
+        expect(isSolvable(level)).toBe(true);
+      }
+    }
+  }, 60000);
 });
