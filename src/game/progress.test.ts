@@ -9,6 +9,7 @@ import {
   recordClear,
   spendHint,
   type Progress,
+  markTutorialSeen,
 } from './progress';
 
 function clearMany(p: Progress, difficulty: number, n: number): Progress {
@@ -127,5 +128,13 @@ describe('nextLevel and hints', () => {
     for (let i = 0; i < 3; i++) p = p && spendHint(p);
     expect(p?.hints).toBe(0);
     expect(p && spendHint(p)).toBeNull();
+  });
+});
+
+describe('markTutorialSeen', () => {
+  it('flips the flag once and is saved with progress', () => {
+    const p = markTutorialSeen(emptyProgress());
+    expect(p.seenTutorial).toBe(true);
+    expect(markTutorialSeen(p)).toBe(p);
   });
 });

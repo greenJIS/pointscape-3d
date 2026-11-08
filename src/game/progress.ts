@@ -134,3 +134,7 @@ function nextAfter(
 export function spendHint(p: Progress): Progress | null {
   return p.hints > 0 ? { ...p, hints: p.hints - 1 } : null;
 }
+
+/** The first-level coach mark has been dismissed (it shows once). */
+export const markTutorialSeen = (p: Progress): Progress =>
+  p.seenTutorial ? p : { ...p, seenTutorial: true };
