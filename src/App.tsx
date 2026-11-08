@@ -172,6 +172,7 @@ export default function App() {
           hints={progress.hints}
           colorMode={save.settings.colorMode}
           lowPower={save.settings.lowPower}
+          sound={save.settings.sound}
           clearedInDifficulty={clearedCount(progress, difficulty)}
           nextUnlocked={isDifficultyUnlocked(difficulty + 1, progress, false)}
           onHintUsed={onHintUsed}

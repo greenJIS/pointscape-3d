@@ -21,6 +21,7 @@ import type { ColorMode } from '../game/settings';
 import { Board3D } from '../view/Board3D';
 import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
+import { playSound } from '../view/sound';
 import { oneColorFor } from '../view/palette';
 import { accentFor } from './accents';
 import { CoachMark } from './CoachMark';
@@ -32,6 +33,7 @@ interface Props {
   readonly hints: number;
   readonly colorMode: ColorMode;
   readonly lowPower: boolean;
+  readonly sound: boolean;
   /** Clears needed to open the next difficulty, for the win line. */
   readonly clearedInDifficulty: number;
   readonly nextUnlocked: boolean;
@@ -59,6 +61,7 @@ export function GameScreen({
   hints,
   colorMode,
   lowPower,
+  sound,
   clearedInDifficulty,
   nextUnlocked,
   onHintUsed,
@@ -105,6 +108,11 @@ export function GameScreen({
       live.current = r.session;
       setSession(r.session);
       setHintId(null);
+      if (sound) {
+        if (r.session.status === 'won') playSound('win');
+        else if (r.session.status === 'lost') playSound('lose');
+        else playSound(r.outcome === 'exit' ? 'exit' : 'blocked');
+      }
       if (r.outcome === 'exit') {
         const arrow = board.arrows.find((a) => a.id === arrowId);
         if (arrow) {
@@ -130,7 +138,7 @@ export function GameScreen({
         window.setTimeout(() => setFlashId(null), FLASH_MS);
       }
     },
-    [board, onWin],
+    [board, onWin, sound],
   );
 
   const onHint = () => {
