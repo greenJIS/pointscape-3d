@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {
   blockerOf,
@@ -49,6 +50,13 @@ interface ArrowView {
   readonly pick: THREE.Mesh;
   readonly material: THREE.MeshStandardMaterial;
   readonly layer: number;
+  /** Drawn as part of the merged layer mesh instead of its own meshes (N-2). */
+  batched: boolean;
+  /** Whether the arrow should be in the merged mesh at the next rebuild. */
+  want: boolean;
+  hasTube: boolean;
+  /** Body and head as one world-space geometry, cached for the merged mesh. */
+  solid: THREE.BufferGeometry | null;
   base: THREE.Color;
   state: State;
   t0: number;
@@ -60,6 +68,8 @@ interface ArrowView {
   jiggleDir: THREE.Vector3;
 }
 
+/** Pick meshes sit on their own layer: the camera never draws them, only the raycaster sees them. */
+const PICK_LAYER = 1;
 const TUBE_RADIUS = 0.16;
 const PICK_RADIUS = 0.42;
 const CORNER = 0.34;
@@ -134,6 +144,15 @@ export class BoardScene {
   private moved = false;
   private pinchStart = 0;
   private pinchZoom = 1;
+  private readonly batches: THREE.Mesh[] = [];
+  private readonly batchMat = new THREE.MeshStandardMaterial({
+    color: '#ffffff',
+    roughness: 0.28,
+    metalness: 0.08,
+    vertexColors: true,
+  });
+  private batchDirty = true;
+  private lastRebuild = 0;
   private readonly ripples: Ripple[] = [];
   private readonly rippleGeo = new THREE.RingGeometry(0.92, 1, 64);
   private readonly reduceMotion =
@@ -261,6 +280,7 @@ export class BoardScene {
       new THREE.MeshBasicMaterial({ visible: false }),
     );
     pick.userData.arrowId = arrow.id;
+    pick.layers.set(PICK_LAYER);
     group.add(tube, head, pick);
     this.root.add(group);
     const layer = arrow.cells[0]?.z ?? 0;
@@ -273,6 +293,10 @@ export class BoardScene {
       pick,
       material,
       layer,
+      batched: false,
+      want: false,
+      hasTube: false,
+      solid: null,
       base: new THREE.Color('#ffffff'),
       state: 'idle',
       t0: 0,
@@ -316,8 +340,14 @@ export class BoardScene {
     const { path, arrow } = view;
     const pts = subPath(path, offset, offset + (length ?? path.bodyLength));
     view.tube.geometry.dispose();
-    const geo = this.tubeGeometry(pts, TUBE_RADIUS, 10);
-    view.tube.visible = geo !== null;
+    const geo = this.tubeGeometry(
+      pts,
+      TUBE_RADIUS,
+      this.opts.lowPower ? 6 : 10,
+    );
+    view.hasTube = geo !== null;
+    view.tube.visible = geo !== null && !view.batched;
+    view.head.visible = !view.batched;
     view.tube.geometry = geo ?? new THREE.BufferGeometry();
     if (withPick) {
       view.pick.geometry.dispose();
@@ -327,6 +357,10 @@ export class BoardScene {
     const end = pts[pts.length - 1];
     if (!end) return;
     view.head.position.copy(this.world(end));
+    view.head.quaternion.copy(this.headQuaternion(arrow));
+  }
+
+  private headQuaternion(arrow: Arrow): THREE.Quaternion {
     const dir = new THREE.Vector3(
       arrow.dir.x,
       -arrow.dir.y,
@@ -337,9 +371,128 @@ export class BoardScene {
         ? new THREE.Vector3(1, 0, 0)
         : new THREE.Vector3(0, 0, 1);
     const side = new THREE.Vector3().crossVectors(normal, dir);
-    view.head.quaternion.setFromRotationMatrix(
+    return new THREE.Quaternion().setFromRotationMatrix(
       new THREE.Matrix4().makeBasis(dir, side, normal),
     );
+  }
+
+  // ---- merged layer meshes (N-2) ----
+
+  /** The whole arrow, body and head, as one world-space geometry. Cached. */
+  private solidFor(v: ArrowView): THREE.BufferGeometry | null {
+    if (v.solid) return v.solid;
+    const pts = subPath(v.path, 0, v.path.bodyLength);
+    const parts: THREE.BufferGeometry[] = [];
+    const tube = this.tubeGeometry(
+      pts,
+      TUBE_RADIUS,
+      this.opts.lowPower ? 6 : 10,
+    );
+    if (tube) {
+      const flat = tube.toNonIndexed();
+      tube.dispose();
+      flat.deleteAttribute('uv');
+      parts.push(flat);
+    }
+    const end = pts[pts.length - 1];
+    if (end) {
+      const head = this.headGeo.clone();
+      head.clearGroups();
+      head.deleteAttribute('uv');
+      head.applyMatrix4(
+        new THREE.Matrix4().compose(
+          this.world(end),
+          this.headQuaternion(v.arrow),
+          new THREE.Vector3(1, 1, 1),
+        ),
+      );
+      parts.push(head);
+    }
+    const first = parts[0];
+    if (parts.length < 2) {
+      v.solid = first ?? null;
+      return v.solid;
+    }
+    v.solid = mergeGeometries(parts, false);
+    parts.forEach((g) => g.dispose());
+    return v.solid;
+  }
+
+  /** Which arrows can sit in the merged mesh: idle ones with nothing animating. */
+  private syncBatched(now: number): void {
+    let pending = false;
+    for (const v of this.views.values()) {
+      v.want =
+        v.state === 'idle' &&
+        v.flashUntil === 0 &&
+        now >= v.jiggleT0 + ANIM.jiggle &&
+        v.group.position.lengthSq() === 0 &&
+        this.hintId !== v.arrow.id;
+      if (!v.want && v.batched) {
+        // Leaving the merged mesh must show at once, or the arrow draws twice.
+        v.batched = false;
+        v.tube.visible = v.hasTube;
+        v.head.visible = true;
+        this.batchDirty = true;
+      } else if (v.want && !v.batched) {
+        pending = true;
+      }
+    }
+    // Arrows joining the merged mesh can wait a moment, so a burst costs one rebuild.
+    if (pending && now - this.lastRebuild > 0.15) this.batchDirty = true;
+  }
+
+  private rebuildBatches(now: number): void {
+    const free = this.freeSet();
+    const { layers } = this.level;
+    for (let z = 0; z < layers; z++) {
+      const members: ArrowView[] = [];
+      const geos: THREE.BufferGeometry[] = [];
+      for (const v of this.views.values()) {
+        if (v.layer !== z || !v.want) continue;
+        const g = this.solidFor(v);
+        if (!g) continue;
+        members.push(v);
+        geos.push(g);
+      }
+      let mesh = this.batches[z];
+      if (geos.length === 0) {
+        if (mesh) mesh.visible = false;
+        continue;
+      }
+      const merged = mergeGeometries(geos, false);
+      if (!merged) continue;
+      const colors = new Float32Array(
+        merged.getAttribute('position').count * 3,
+      );
+      let o = 0;
+      members.forEach((v, i) => {
+        const c = this.displayColor(v, free, now);
+        const n = geos[i]?.getAttribute('position').count ?? 0;
+        for (let k = 0; k < n; k++) {
+          colors[o++] = c.r;
+          colors[o++] = c.g;
+          colors[o++] = c.b;
+        }
+      });
+      merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      if (mesh) {
+        mesh.geometry.dispose();
+        mesh.geometry = merged;
+      } else {
+        mesh = new THREE.Mesh(merged, this.batchMat);
+        this.root.add(mesh);
+        this.batches[z] = mesh;
+      }
+      mesh.visible = !this.hiddenLayer(z);
+      for (const v of members) {
+        v.batched = true;
+        v.tube.visible = false;
+        v.head.visible = false;
+      }
+    }
+    this.lastRebuild = now;
+    this.dirty = true;
   }
 
   /** Arrows draw in along their paths, started one after another (FR-56). */
@@ -457,6 +610,8 @@ export class BoardScene {
     this.layerView = view;
     if (respace) {
       for (const v of this.views.values()) {
+        v.solid?.dispose();
+        v.solid = null;
         if (v.state === 'idle') this.shape(v, 0, true);
       }
     }
@@ -515,6 +670,7 @@ export class BoardScene {
     const hide = (layer: number): boolean => layer >= firstHidden;
     this.plates.forEach((p) => (p.visible = !hide(Number(p.userData.layer))));
     this.dots.forEach((d) => (d.visible = !hide(Number(d.userData.layer))));
+    this.batches.forEach((b, z) => (b.visible = !hide(z)));
     this.plates.forEach((p, z) =>
       p.position.set(0, 0, z * this.layerSpacing() - 0.3),
     );
@@ -527,30 +683,47 @@ export class BoardScene {
     this.dirty = true;
   }
 
+  /** In stacked levels, the ids of arrows that can leave now. Null when there is one layer. */
+  private freeSet(): Set<number> | null {
+    if (this.level.layers <= 1) return null;
+    return new Set(
+      freeArrowIds(
+        this.level,
+        this.level.arrows.filter((a) => this.alive.has(a.id)),
+      ),
+    );
+  }
+
+  private displayColor(
+    v: ArrowView,
+    free: ReadonlySet<number> | null,
+    now: number,
+  ): THREE.Color {
+    const flashing = now < v.flashUntil;
+    const color = flashing ? new THREE.Color(BLOCKED) : v.base.clone();
+    // In stacked levels, blocked arrows are dimmed (FR-62).
+    if (!flashing && free && !free.has(v.arrow.id)) color.lerp(PLATE, DIM);
+    return color;
+  }
+
   private refreshColors(): void {
-    const stacked = this.level.layers > 1;
-    const free = stacked
-      ? new Set(
-          freeArrowIds(
-            this.level,
-            this.level.arrows.filter((a) => this.alive.has(a.id)),
-          ),
-        )
-      : null;
+    const free = this.freeSet();
     const now = performance.now() / 1000;
+    const xray = this.layerView.xray;
     for (const v of this.views.values()) {
       v.base = new THREE.Color(
         this.oneColor ?? this.colors.get(v.arrow.id) ?? '#ffffff',
       );
-      const flashing = now < v.flashUntil;
-      const color = flashing ? new THREE.Color(BLOCKED) : v.base.clone();
-      // In stacked levels, blocked arrows are dimmed (FR-62).
-      if (!flashing && free && !free.has(v.arrow.id)) color.lerp(PLATE, DIM);
-      v.material.color.copy(color);
-      v.material.transparent = this.layerView.xray;
-      v.material.opacity = this.layerView.xray ? 0.42 : 1;
-      v.material.depthWrite = !this.layerView.xray;
+      v.material.color.copy(this.displayColor(v, free, now));
+      v.material.transparent = xray;
+      v.material.opacity = xray ? 0.42 : 1;
+      v.material.depthWrite = !xray;
     }
+    this.batchMat.transparent = xray;
+    this.batchMat.opacity = xray ? 0.42 : 1;
+    this.batchMat.depthWrite = !xray;
+    this.batchMat.needsUpdate = true;
+    this.batchDirty = true;
     this.dirty = true;
   }
 
@@ -599,6 +772,11 @@ export class BoardScene {
         v.flashUntil = 0;
         this.refreshColors();
       }
+    }
+    this.syncBatched(now);
+    if (this.batchDirty) {
+      this.batchDirty = false;
+      this.rebuildBatches(now);
     }
     if (this.stepRipples(now)) animating = true;
     if (this.hintId !== null) {
@@ -762,6 +940,7 @@ export class BoardScene {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -(((clientY - rect.top) / rect.height) * 2 - 1),
     );
+    this.raycaster.layers.set(PICK_LAYER);
     this.raycaster.setFromCamera(ndc, this.camera);
     const targets: THREE.Object3D[] = [];
     for (const v of this.views.values()) {
@@ -825,6 +1004,8 @@ export class BoardScene {
     window.clearTimeout(this.holdTimer);
     this.previewGeo.dispose();
     this.rippleGeo.dispose();
+    this.batchMat.dispose();
+    for (const v of this.views.values()) v.solid?.dispose();
     this.previewOk.dispose();
     this.previewBlocked.dispose();
     cancelAnimationFrame(this.raf);
