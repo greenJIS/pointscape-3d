@@ -50,7 +50,7 @@ const SPEEDS: readonly { id: ArrowSpeed; label: string }[] = [
 
 const MODES: readonly { id: ColorMode; label: string; hint: string }[] = [
   { id: 'multi', label: 'Multi-color', hint: 'All five colours' },
-  { id: 'one', label: 'One-color', hint: 'One colour per level' },
+  { id: 'one', label: 'One-color', hint: 'One colour you pick' },
 ];
 
 export function SettingsScreen({
@@ -123,19 +123,28 @@ export function SettingsScreen({
               ))}
             </div>
             <div className="mt-3 flex items-center gap-2">
-              {(settings.colorMode === 'multi' ? POOL : POOL.slice(2, 3)).map(
-                (c) => (
+              {settings.colorMode === 'multi' ? (
+                POOL.map((c) => (
                   <span
                     key={c}
                     className="size-8 rounded-full"
                     style={{ background: c }}
                   />
-                ),
-              )}
-              {settings.colorMode === 'one' && (
-                <span className="text-xs text-slate-500">
-                  random pick per level
-                </span>
+                ))
+              ) : (
+                <>
+                  {POOL.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={`Use colour ${c}`}
+                      aria-pressed={settings.oneColor === c}
+                      onClick={() => onSettings({ ...settings, oneColor: c })}
+                      className={`size-8 rounded-full border-2 ${settings.oneColor === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </section>

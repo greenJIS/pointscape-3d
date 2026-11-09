@@ -200,6 +200,7 @@ export default function App() {
           level={level}
           hints={progress.hints}
           colorMode={save.settings.colorMode}
+          oneColor={save.settings.oneColor}
           lowPower={save.settings.lowPower}
           sound={save.settings.sound}
           arrowSpeed={save.settings.arrowSpeed}

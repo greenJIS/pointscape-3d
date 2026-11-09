@@ -11,6 +11,8 @@ export const ARROW_SPEED_RATE: Readonly<Record<ArrowSpeed, number>> = {
 
 export interface Settings {
   readonly colorMode: ColorMode;
+  /** One-color mode: the palette colour every arrow uses. */
+  readonly oneColor: string;
   readonly arrowSpeed: ArrowSpeed;
   /** See-through panel of each layer, and the grid dots on it. */
   readonly showLayers: boolean;
@@ -22,6 +24,7 @@ export interface Settings {
 /** Multi-color is the default (FR-37). */
 export const defaultSettings = (): Settings => ({
   colorMode: 'multi',
+  oneColor: '#2dd4bf',
   arrowSpeed: 'normal',
   showLayers: true,
   showDots: false,

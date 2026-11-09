@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../core/rng';
 import { ANIMALS, cleanName, nameOrAnimal } from './playerName';
 import { emptyProgress, recordClear } from './progress';
+import { defaultSettings } from './settings';
 import {
   emptySave,
   loadSave,
@@ -28,6 +29,7 @@ describe('saving', () => {
       progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
         colorMode: 'one' as const,
+        oneColor: '#2dd4bf',
         arrowSpeed: 'fast' as const,
         showLayers: false,
         showDots: true,
@@ -117,6 +119,7 @@ describe('reset progress', () => {
       progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
         colorMode: 'one' as const,
+        oneColor: '#2dd4bf',
         arrowSpeed: 'fast' as const,
         showLayers: false,
         showDots: true,
@@ -151,5 +154,12 @@ describe('player name', () => {
   it('has at least 20 animals, each short enough', () => {
     expect(ANIMALS.length).toBeGreaterThanOrEqual(20);
     expect(ANIMALS.every((a) => a.length >= 1 && a.length <= 16)).toBe(true);
+  });
+
+  it('drops a saved one-color value that is not in the palette', () => {
+    const text = JSON.stringify({
+      settings: { colorMode: 'one', oneColor: '#123456' },
+    });
+    expect(parseSave(text).settings.oneColor).toBe(defaultSettings().oneColor);
   });
 });

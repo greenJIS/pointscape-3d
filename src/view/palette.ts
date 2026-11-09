@@ -1,5 +1,3 @@
-import { createRng } from '../core/rng';
-import { seedFor } from '../core/levels';
 import { assignColors } from '../core/coloring';
 import type { Level } from '../core/types';
 
@@ -13,10 +11,6 @@ export const POOL: readonly string[] = [
 ];
 
 export const BLOCKED = '#f87171';
-
-/** One-color mode: one pool colour per level, the same every time for that level (FR-35). */
-export const oneColorFor = (difficulty: number, level: number): string =>
-  createRng(seedFor(difficulty, level) ^ 0x9e3779b9).pick(POOL);
 
 /** Colour per arrow id with touching arrows kept apart where the pool allows (FR-36). */
 export const arrowColors = (level: Level): Map<number, string> => {

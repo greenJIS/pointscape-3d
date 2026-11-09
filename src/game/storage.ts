@@ -1,6 +1,7 @@
 import { isTrack, LEVELS_PER_TRACK, TRACK_COUNT } from '../core/difficulty';
 import { cleanName } from './playerName';
 import { emptyProgress, type Progress } from './progress';
+import { POOL } from '../view/palette';
 import { defaultSettings, type Settings } from './settings';
 
 export const STORAGE_KEY = 'pointscape-3d:v1';
@@ -78,6 +79,10 @@ export function parseSave(text: string | null): SaveData {
   const s = isRecord(raw.settings) ? raw.settings : {};
   const settings: Settings = {
     colorMode: s.colorMode === 'one' ? 'one' : 'multi',
+    oneColor:
+      typeof s.oneColor === 'string' && POOL.includes(s.oneColor)
+        ? s.oneColor
+        : base.settings.oneColor,
     arrowSpeed:
       s.arrowSpeed === 'slow' || s.arrowSpeed === 'fast'
         ? s.arrowSpeed

@@ -27,7 +27,6 @@ import { Board3D } from '../view/Board3D';
 import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
 import { ANIM, arrowPath, slideDistance } from '../view/path';
-import { oneColorFor } from '../view/palette';
 import { playSound } from '../view/sound';
 import { accentFor } from './accents';
 import { CoachMark } from './CoachMark';
@@ -39,6 +38,8 @@ interface Props {
   readonly level: number;
   readonly hints: number;
   readonly colorMode: ColorMode;
+  /** The colour picked in Settings for one-color mode. */
+  readonly oneColor: string;
   readonly lowPower: boolean;
   readonly sound: boolean;
   readonly arrowSpeed: ArrowSpeed;
@@ -83,6 +84,7 @@ export function GameScreen({
   level,
   hints,
   colorMode,
+  oneColor: chosenColor,
   lowPower,
   sound,
   arrowSpeed,
@@ -129,7 +131,7 @@ export function GameScreen({
   );
   const slideRate = ARROW_SPEED_RATE[arrowSpeed];
   const accent = accentFor(difficulty);
-  const oneColor = colorMode === 'one' ? oneColorFor(difficulty, level) : null;
+  const oneColor = colorMode === 'one' ? chosenColor : null;
 
   const onTap = useCallback(
     (arrowId: number) => {
