@@ -30,6 +30,8 @@ export interface LayerView {
 export interface SceneOptions {
   readonly lowPower: boolean;
   readonly onTap: (arrowId: number) => void;
+  /** Called when the view moves away from, or back to, its opening state. */
+  readonly onViewChange?: (isDefault: boolean) => void;
 }
 
 type State = 'idle' | 'exit' | 'bounce' | 'hidden' | 'intro';
@@ -197,6 +199,9 @@ function tubeMesh(
   return g;
 }
 
+/** See-through strength of a layer plate. */
+const LAYER_OPACITY = 0.14;
+
 function plateShape(w: number, h: number, r: number): THREE.Shape {
   const s = new THREE.Shape();
   const x = -w / 2;
@@ -254,6 +259,10 @@ export class BoardScene {
   private readonly raycaster = new THREE.Raycaster();
   private readonly views = new Map<number, ArrowView>();
   private readonly plates: THREE.Mesh[] = [];
+  /** When each layer finished clearing, in seconds. 0 while it still has arrows. */
+  private layerClearT: number[] = [];
+  /** True once a cleared layer has finished its vanish animation. */
+  private layerGone: boolean[] = [];
   private readonly dots: THREE.InstancedMesh[] = [];
   private readonly headGeo = headGeometry();
   private readonly canvas: HTMLCanvasElement;
@@ -283,6 +292,15 @@ export class BoardScene {
   /** Where shadows land from their arrows, in board space. Follows the light as the board turns. */
   private readonly shadowOffset = new THREE.Vector3(0.07, -0.12, -0.12);
   private zoom = 1;
+  private viewIsDefault = true;
+  private viewTween: {
+    readonly t0: number;
+    readonly spin: number;
+    readonly tilt: number;
+    readonly zoom: number;
+    readonly toSpin: number;
+    readonly toTilt: number;
+  } | null = null;
   private dirty = true;
   private raf = 0;
   private disposed = false;
@@ -336,8 +354,7 @@ export class BoardScene {
     this.colors = arrowColors(level);
     this.opts = opts;
     // Single layers face the player flat, like the demo. Stacks tilt so the layers read.
-    if (level.layers > 1) this.tilt = 0.42;
-    this.updateOrient();
+    this.resetView();
     this.alive = new Set(level.arrows.map((a) => a.id));
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -422,6 +439,61 @@ export class BoardScene {
     for (const s of this.batchShadows) s.position.copy(next);
   }
 
+  /** Back to the opening view: facing the player, centred, at the default zoom. */
+  resetView(animate = false): void {
+    const tilt = this.level.layers > 1 ? 0.42 : 0;
+    if (!animate || this.reduceMotion) {
+      this.spin = 0;
+      this.tilt = tilt;
+      this.zoom = 1;
+      this.viewTween = null;
+      this.updateOrient();
+      this.dirty = true;
+      return;
+    }
+    // Take the shorter way round, so a board turned past a half turn does not spin back far.
+    const turns = Math.round(this.spin / (Math.PI * 2));
+    this.viewTween = {
+      t0: performance.now() / 1000,
+      spin: this.spin,
+      tilt: this.tilt,
+      zoom: this.zoom,
+      toSpin: turns * Math.PI * 2,
+      toTilt: tilt,
+    };
+    this.dirty = true;
+  }
+
+  /** Eases the view toward its opening state. Returns true while it is still moving. */
+  private stepViewTween(now: number): boolean {
+    const w = this.viewTween;
+    if (!w) return false;
+    const k = Math.min(1, (now - w.t0) / ANIM.viewReset);
+    const e = 1 - Math.pow(1 - k, 3);
+    this.spin = w.spin + (w.toSpin - w.spin) * e;
+    this.tilt = w.tilt + (w.toTilt - w.tilt) * e;
+    this.zoom = w.zoom + (1 - w.zoom) * e;
+    if (k >= 1) {
+      this.spin = 0;
+      this.viewTween = null;
+    }
+    this.updateOrient();
+    return true;
+  }
+
+  private reportView(): void {
+    const turn = Math.PI * 2;
+    const spin = Math.abs(this.spin - Math.round(this.spin / turn) * turn);
+    const home = this.level.layers > 1 ? 0.42 : 0;
+    const isDefault =
+      spin < 0.01 &&
+      Math.abs(this.tilt - home) < 0.01 &&
+      Math.abs(this.zoom - 1) < 0.01;
+    if (isDefault === this.viewIsDefault) return;
+    this.viewIsDefault = isDefault;
+    this.opts.onViewChange?.(isDefault);
+  }
+
   private updateOrient(): void {
     this.orient.setFromEuler(new THREE.Euler(-this.tilt, this.spin, 0, 'XYZ'));
   }
@@ -442,12 +514,14 @@ export class BoardScene {
       const mat = new THREE.MeshBasicMaterial({
         color: '#475569',
         transparent: true,
-        opacity: 0.14,
+        opacity: LAYER_OPACITY,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
       const plate = new THREE.Mesh(geo, mat);
       plate.userData.layer = z;
+      this.layerClearT.push(0);
+      this.layerGone.push(false);
       this.root.add(plate);
       this.plates.push(plate);
 
@@ -980,12 +1054,16 @@ export class BoardScene {
     this.plates.forEach(
       (p) =>
         (p.visible =
-          this.layerView.showLayers && !hide(Number(p.userData.layer))),
+          this.layerView.showLayers &&
+          !hide(Number(p.userData.layer)) &&
+          !this.layerGone[Number(p.userData.layer)]),
     );
     this.dots.forEach(
       (d) =>
         (d.visible =
-          this.layerView.showDots && !hide(Number(d.userData.layer))),
+          this.layerView.showDots &&
+          !hide(Number(d.userData.layer)) &&
+          !this.layerGone[Number(d.userData.layer)]),
     );
     this.batches.forEach((b, z) => (b.visible = !hide(z)));
     this.plates.forEach((p, z) => p.position.set(0, 0, this.layerZ(z)));
@@ -1062,6 +1140,7 @@ export class BoardScene {
     if (this.disposed) return;
     const now = performance.now() / 1000;
     let animating = false;
+    this.reportView();
     for (const v of this.views.values()) {
       if (v.state === 'exit') {
         animating = true;
@@ -1114,12 +1193,61 @@ export class BoardScene {
       animating = true;
     }
     if (this.updateEffects(now)) animating = true;
+    if (this.stepViewTween(now)) animating = true;
+    if (this.stepLayerClear(now)) animating = true;
     if (this.updateDots(now) || this.win) animating = true;
     if (animating || this.dirty) {
       this.dirty = false;
       this.renderFrame();
     }
     this.raf = requestAnimationFrame(this.loop);
+  }
+
+  /**
+   * A layer with no arrows left fades and shrinks away. Its dots go with it, except on a win,
+   * where they stay for the ripple. Returns true while one is still moving.
+   */
+  private stepLayerClear(now: number): boolean {
+    let moving = false;
+    const layers = this.level.layers;
+    const left = new Array<boolean>(layers).fill(false);
+    for (const v of this.views.values()) {
+      if (v.state !== 'hidden') left[v.layer] = true;
+    }
+    const won = left.every((l) => !l);
+    for (let z = 0; z < layers; z++) {
+      const plate = this.plates[z];
+      const dots = this.dots[z];
+      if (!plate || !dots) continue;
+      const mat = plate.material as THREE.MeshBasicMaterial;
+      const t0 = this.layerClearT[z] ?? 0;
+      if (left[z]) {
+        if (t0 > 0) {
+          // A restart brought arrows back.
+          this.layerClearT[z] = 0;
+          this.layerGone[z] = false;
+          mat.opacity = LAYER_OPACITY;
+          plate.scale.setScalar(1);
+          dots.scale.setScalar(1);
+          this.applyLayerView();
+        }
+        continue;
+      }
+      if (this.layerGone[z]) continue;
+      if (t0 === 0) this.layerClearT[z] = now;
+      const k = Math.min(1, (now - (t0 || now)) / ANIM.layerClear);
+      const e = k * k;
+      mat.opacity = LAYER_OPACITY * (1 - e);
+      plate.scale.setScalar(1 - 0.12 * e);
+      if (!won) dots.scale.setScalar(1 - 0.12 * e);
+      if (k >= 1) {
+        this.layerGone[z] = true;
+        this.applyLayerView();
+      } else {
+        moving = true;
+      }
+    }
+    return moving;
   }
 
   private stepBounce(v: ArrowView, now: number): void {
@@ -1209,6 +1337,7 @@ export class BoardScene {
 
   private readonly onDown = (e: PointerEvent): void => {
     this.canvas.setPointerCapture(e.pointerId);
+    this.viewTween = null;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 1) {
       this.downAt = { x: e.clientX, y: e.clientY };
@@ -1248,7 +1377,7 @@ export class BoardScene {
     }
     if (this.moved) {
       this.spin += (e.clientX - prev.x) * 0.008;
-      this.tilt = clamp(this.tilt + (e.clientY - prev.y) * 0.008, -1.45, 1.45);
+      this.tilt = clamp(this.tilt - (e.clientY - prev.y) * 0.008, -1.45, 1.45);
       this.updateOrient();
       this.dirty = true;
     }
@@ -1280,6 +1409,7 @@ export class BoardScene {
   }
 
   private setZoom(z: number): void {
+    this.viewTween = null;
     this.zoom = clamp(z, 0.6, 3);
     this.dirty = true;
   }

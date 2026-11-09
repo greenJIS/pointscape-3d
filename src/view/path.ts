@@ -82,6 +82,8 @@ export const ANIM = {
   /** Exit slide: start speed (cells per second) and acceleration (cells per second squared). */
   speed: 8,
   acc: 40,
+  /** Seconds the reset-view button takes to turn the board back. */
+  viewReset: 0.5,
   /** Bounce: seconds going forward, then coming back. */
   forward: 0.12,
   back: 0.12,
@@ -107,8 +109,10 @@ export const ANIM = {
   rippleDelay: 0.035,
   rippleLayerDelay: 0.15,
   /** Pause after the last arrow is gone before the win card, and before the lose card. */
-  winCard: 0.9,
+  winCard: 0.3,
   loseCard: 0.65,
+  /** A layer with no arrows left fades and shrinks away over this long. */
+  layerClear: 0.45,
   /** Grid dots fade back in over this long once an arrow has passed (FR-52). */
   dotFade: 0.2,
   /** A moving arrow hides dots closer than this to its body. */

@@ -108,6 +108,8 @@ export function GameScreen({
   const [winShown, setWinShown] = useState(false);
   const [loseShown, setLoseShown] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [resetCount, setResetCount] = useState(0);
+  const [viewDefault, setViewDefault] = useState(true);
   const [result, setResult] = useState<ClearResult | null>(null);
   const [gap, setGap] = useState(0.3);
   const [hideFront, setHideFront] = useState(0);
@@ -133,13 +135,13 @@ export function GameScreen({
       setSession(r.session);
       setHintId(null);
       if (r.session.status === 'lost') {
-        window.setTimeout(() => setLoseShown(true), ANIM.loseCard * 1000);
+        window.setTimeout(() => {
+          setLoseShown(true);
+          if (sound) playSound('lose');
+        }, ANIM.loseCard * 1000);
       }
-      if (sound) {
-        if (r.session.status === 'won') playSound('win');
-        else if (r.session.status === 'lost') playSound('lose');
-        else playSound(r.outcome === 'exit' ? 'exit' : 'blocked');
-      }
+      // The win and lose sounds wait for their modal, so the tap itself only gets its own sound.
+      if (sound) playSound(r.outcome === 'exit' ? 'exit' : 'blocked');
       if (r.outcome === 'exit') {
         const arrow = board.arrows.find((a) => a.id === arrowId);
         if (arrow) {
@@ -158,7 +160,10 @@ export function GameScreen({
           reported.current = true;
           if (arrow) setRippleFrom(headOf(arrow));
           window.setTimeout(
-            () => setWinShown(true),
+            () => {
+              setWinShown(true);
+              if (sound) playSound('win');
+            },
             (slideSeconds(board, arrow, slideRate) + ANIM.winCard) * 1000,
           );
           setResult(onWin());
@@ -237,7 +242,19 @@ export function GameScreen({
       </header>
 
       <div className="@container-size flex min-h-0 flex-1 items-center justify-center p-3">
-        <div className="size-[min(100cqw,100cqh)]">
+        <div className="relative size-[min(100cqw,100cqh)]">
+          {gl && (
+            <button
+              type="button"
+              onClick={() => setResetCount((n) => n + 1)}
+              disabled={viewDefault}
+              aria-label="Reset view"
+              title="Reset view"
+              className="absolute top-2 right-2 z-10 grid size-11 place-items-center rounded-full border border-teal-200/60 bg-linear-to-b from-teal-200 to-teal-500 text-xl font-bold text-slate-900 shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_5px_0_var(--color-teal-700),0_8px_12px_rgb(0_0_0/0.5)] enabled:hover:brightness-110 enabled:active:translate-y-1 enabled:active:shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_1px_0_var(--color-teal-700),0_2px_4px_rgb(0_0_0/0.5)] disabled:translate-y-0.5 disabled:cursor-default disabled:border-slate-600 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-[inset_0_2px_0_rgb(255_255_255/0.15),0_2px_0_var(--color-slate-800)]"
+            >
+              ⌖
+            </button>
+          )}
           {gl ? (
             <Board3D
               key={`${difficulty}:${level}:${lowPower}`}
@@ -251,7 +268,9 @@ export function GameScreen({
               slideRate={slideRate}
               layerView={layerView}
               rippleFrom={rippleFrom}
+              resetCount={resetCount}
               onTap={onTap}
+              onViewChange={setViewDefault}
             />
           ) : (
             <FlatBoard

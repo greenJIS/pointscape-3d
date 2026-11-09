@@ -15,7 +15,11 @@ interface Props {
   readonly layerView: LayerView;
   /** Set when the level is won: the cell the clear ripple starts from. */
   readonly rippleFrom: Vec3 | null;
+  /** Each change puts the board back to its opening view. */
+  readonly resetCount: number;
   readonly onTap: (arrowId: number) => void;
+  /** True while the view sits at its opening position. */
+  readonly onViewChange: (isDefault: boolean) => void;
 }
 
 /**
@@ -33,16 +37,20 @@ export function Board3D({
   slideRate,
   layerView,
   rippleFrom,
+  resetCount,
   onTap,
+  onViewChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<BoardScene | null>(null);
   const tapRef = useRef(onTap);
+  const viewRef = useRef(onViewChange);
   const seenLeaving = useRef(new Set<number>());
 
   useEffect(() => {
     tapRef.current = onTap;
-  }, [onTap]);
+    viewRef.current = onViewChange;
+  }, [onTap, onViewChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,8 +58,10 @@ export function Board3D({
     const scene = new BoardScene(canvas, level, {
       lowPower,
       onTap: (id) => tapRef.current(id),
+      onViewChange: (d) => viewRef.current(d),
     });
     sceneRef.current = scene;
+    viewRef.current(true);
     const ro = new ResizeObserver(() => scene.resize());
     ro.observe(canvas);
     return () => {
@@ -68,6 +78,10 @@ export function Board3D({
   useEffect(() => sceneRef.current?.setAlive(alive), [alive]);
   useEffect(() => sceneRef.current?.setLayerView(layerView), [layerView]);
   useEffect(() => sceneRef.current?.setHint(hintId), [hintId]);
+
+  useEffect(() => {
+    if (resetCount > 0) sceneRef.current?.resetView(true);
+  }, [resetCount]);
 
   useEffect(() => {
     if (rippleFrom) sceneRef.current?.ripple(rippleFrom);
