@@ -1,4 +1,4 @@
-import { DIFFICULTIES } from '../core/difficulty';
+import { trackName } from '../core/difficulty';
 import type { Progress } from '../game/progress';
 import { totalCleared } from '../game/progress';
 import { HeroBoard } from './HeroBoard';
@@ -21,10 +21,10 @@ export function HomeScreen({
   onSettings,
   onHelp,
 }: Props) {
-  const { difficulty, level } = progress.last;
+  const { difficulty, layers, level } = progress.last;
   const label =
     totalCleared(progress) > 0
-      ? `Continue · ${DIFFICULTIES[difficulty]?.name ?? ''} ${level}`
+      ? `Continue · ${trackName(difficulty, layers)} ${level}`
       : 'Play';
   return (
     <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-6 p-6 lg:flex-row lg:gap-16">

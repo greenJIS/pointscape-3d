@@ -128,7 +128,7 @@ const CARDS: readonly {
 const TIPS: readonly string[] = [
   'Hold an arrow to preview its path.',
   'Drag to tilt the board. Pinch or scroll to zoom.',
-  'In Medium and above, arrows sit on stacked layers. Use the layer controls to see the ones behind.',
+  'On boards with 2 or more layers, arrows sit on stacked layers. Use the layer controls to see the ones behind.',
 ];
 
 export function HowToPlayScreen({ onBack }: Props) {

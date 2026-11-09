@@ -1,9 +1,11 @@
-import { DIFFICULTIES, LEVELS_PER_DIFFICULTY } from '../core/difficulty';
+import { isTrack, LEVELS_PER_TRACK, TRACK_COUNT } from '../core/difficulty';
 import { cleanName } from './playerName';
 import { emptyProgress, type Progress } from './progress';
 import { defaultSettings, type Settings } from './settings';
 
 export const STORAGE_KEY = 'pointscape-3d:v1';
+/** Marks progress saved with one list of cleared levels per (difficulty, layers) track. */
+const PROGRESS_VERSION = 2;
 
 /** The part of `localStorage` we use, so tests can pass a fake (FR-39, FR-63). */
 export interface KeyValueStore {
@@ -29,7 +31,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 const isLevelList = (v: unknown): v is number[] =>
   Array.isArray(v) &&
-  v.every((n) => Number.isInteger(n) && n >= 1 && n <= LEVELS_PER_DIFFICULTY);
+  v.every((n) => Number.isInteger(n) && n >= 1 && n <= LEVELS_PER_TRACK);
 
 /** Reads saved data defensively. Anything unreadable falls back to the default. */
 export function parseSave(text: string | null): SaveData {
@@ -44,21 +46,23 @@ export function parseSave(text: string | null): SaveData {
   if (!isRecord(raw)) return base;
 
   const p = isRecord(raw.progress) ? raw.progress : {};
-  const clearedRaw = Array.isArray(p.cleared) ? p.cleared : [];
-  const cleared = DIFFICULTIES.map((_, i) => {
+  // Saves from before layers and difficulty were separate (no `v`) cannot be mapped onto the
+  // 25 tracks, so their levels start over. Hints, name and settings carry across.
+  const current = p.v === PROGRESS_VERSION;
+  const clearedRaw = current && Array.isArray(p.cleared) ? p.cleared : [];
+  const cleared = Array.from({ length: TRACK_COUNT }, (_, i) => {
     const list = clearedRaw[i];
     return isLevelList(list) ? [...new Set(list)].sort((a, b) => a - b) : [];
   });
-  const last = isRecord(p.last) ? p.last : {};
+  const last = current && isRecord(p.last) ? p.last : {};
   const lastD = typeof last.difficulty === 'number' ? last.difficulty : 0;
+  const lastT = typeof last.layers === 'number' ? last.layers : 1;
   const lastL = typeof last.level === 'number' ? last.level : 1;
   const validLast =
-    Number.isInteger(lastD) &&
-    lastD >= 0 &&
-    lastD < DIFFICULTIES.length &&
+    isTrack(lastD, lastT) &&
     Number.isInteger(lastL) &&
     lastL >= 1 &&
-    lastL <= LEVELS_PER_DIFFICULTY;
+    lastL <= LEVELS_PER_TRACK;
   const progress: Progress = {
     cleared,
     hints:
@@ -66,7 +70,9 @@ export function parseSave(text: string | null): SaveData {
         ? p.hints
         : base.progress.hints,
     seenTutorial: p.seenTutorial === true,
-    last: validLast ? { difficulty: lastD, level: lastL } : base.progress.last,
+    last: validLast
+      ? { difficulty: lastD, layers: lastT, level: lastL }
+      : base.progress.last,
   };
 
   const s = isRecord(raw.settings) ? raw.settings : {};
@@ -102,7 +108,11 @@ export const loadSave = (store: KeyValueStore): SaveData => {
 /** Returns false when the browser refuses to save, for example in private mode. */
 export function writeSave(store: KeyValueStore, data: SaveData): boolean {
   try {
-    store.setItem(STORAGE_KEY, JSON.stringify(data));
+    const out = {
+      ...data,
+      progress: { ...data.progress, v: PROGRESS_VERSION },
+    };
+    store.setItem(STORAGE_KEY, JSON.stringify(out));
     return true;
   } catch {
     return false;

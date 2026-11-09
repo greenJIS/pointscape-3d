@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRng } from './core/rng';
-import { LEVELS_PER_DIFFICULTY } from './core/difficulty';
+import { LEVELS_PER_TRACK } from './core/difficulty';
 import { unlockAllEnabled } from './game/dev';
 import { cleanName, nameOrAnimal } from './game/playerName';
 import {
   clearedCount,
-  isDifficultyUnlocked,
+  isTrackUnlocked,
   isUnlocked,
   markTutorialSeen,
+  opens,
   recordClear,
   spendHint,
   type ClearResult,
@@ -31,10 +32,15 @@ type Screen =
   | { readonly name: 'name' }
   | { readonly name: 'home' }
   | { readonly name: 'difficulty' }
-  | { readonly name: 'levels'; readonly difficulty: number }
+  | {
+      readonly name: 'levels';
+      readonly difficulty: number;
+      readonly layers: number;
+    }
   | {
       readonly name: 'game';
       readonly difficulty: number;
+      readonly layers: number;
       readonly level: number;
     };
 
@@ -67,18 +73,31 @@ export default function App() {
   const { progress } = save;
 
   const play = useCallback(
-    (difficulty: number, level: number) => {
-      if (!isUnlocked(difficulty, level, saveRef.current.progress, unlockAll)) {
+    (difficulty: number, layers: number, level: number) => {
+      if (
+        !isUnlocked(
+          difficulty,
+          layers,
+          level,
+          saveRef.current.progress,
+          unlockAll,
+        )
+      ) {
         return;
       }
-      setScreen({ name: 'game', difficulty, level });
+      setScreen({ name: 'game', difficulty, layers, level });
     },
     [unlockAll],
   );
 
   const onWin = useCallback(
-    (difficulty: number, level: number): ClearResult => {
-      const result = recordClear(saveRef.current.progress, difficulty, level);
+    (difficulty: number, layers: number, level: number): ClearResult => {
+      const result = recordClear(
+        saveRef.current.progress,
+        difficulty,
+        layers,
+        level,
+      );
       saveRef.current = { ...saveRef.current, progress: result.progress };
       setSave(saveRef.current);
       return result;
@@ -129,7 +148,13 @@ export default function App() {
         <HomeScreen
           name={save.name}
           progress={progress}
-          onPlay={() => play(progress.last.difficulty, progress.last.level)}
+          onPlay={() =>
+            play(
+              progress.last.difficulty,
+              progress.last.layers,
+              progress.last.level,
+            )
+          }
           onAllLevels={() => setScreen({ name: 'difficulty' })}
           onSettings={() => setSettingsOpen(true)}
           onHelp={() => setHelpOpen(true)}
@@ -141,7 +166,9 @@ export default function App() {
         <DifficultyScreen
           progress={progress}
           unlockAll={unlockAll}
-          onPick={(difficulty) => setScreen({ name: 'levels', difficulty })}
+          onPick={(difficulty, layers) =>
+            setScreen({ name: 'levels', difficulty, layers })
+          }
           onLocked={setToast}
           onBack={() => setScreen({ name: 'home' })}
         />
@@ -151,10 +178,11 @@ export default function App() {
       body = (
         <LevelsScreen
           difficulty={screen.difficulty}
+          layers={screen.layers}
           progress={progress}
           unlockAll={unlockAll}
-          onPickDifficulty={(difficulty) =>
-            setScreen({ name: 'levels', difficulty })
+          onPickTrack={(difficulty, layers) =>
+            setScreen({ name: 'levels', difficulty, layers })
           }
           onPlay={play}
           onLocked={setToast}
@@ -163,11 +191,12 @@ export default function App() {
       );
       break;
     case 'game': {
-      const { difficulty, level } = screen;
+      const { difficulty, layers, level } = screen;
       body = (
         <GameScreen
-          key={`${difficulty}:${level}`}
+          key={`${difficulty}:${layers}:${level}`}
           difficulty={difficulty}
+          layers={layers}
           level={level}
           hints={progress.hints}
           colorMode={save.settings.colorMode}
@@ -176,19 +205,27 @@ export default function App() {
           arrowSpeed={save.settings.arrowSpeed}
           showLayers={save.settings.showLayers}
           showDots={save.settings.showDots}
-          clearedInDifficulty={clearedCount(progress, difficulty)}
-          nextUnlocked={isDifficultyUnlocked(difficulty + 1, progress, false)}
+          clearedInTrack={clearedCount(progress, difficulty, layers)}
+          pendingTracks={opens(difficulty, layers).filter(
+            (t) => !isTrackUnlocked(t.difficulty, t.layers, progress, false),
+          )}
           onHintUsed={onHintUsed}
-          onWin={() => onWin(difficulty, level)}
+          onWin={() => onWin(difficulty, layers, level)}
           onNext={() =>
             setScreen({
               name: 'game',
               difficulty,
-              level: Math.min(level + 1, LEVELS_PER_DIFFICULTY),
+              layers,
+              level: Math.min(level + 1, LEVELS_PER_TRACK),
             })
           }
-          onLevels={() => setScreen({ name: 'levels', difficulty })}
-          showCoach={difficulty === 0 && level === 1 && !progress.seenTutorial}
+          onLevels={() => setScreen({ name: 'levels', difficulty, layers })}
+          showCoach={
+            difficulty === 0 &&
+            layers === 1 &&
+            level === 1 &&
+            !progress.seenTutorial
+          }
           onCoachDone={onCoachDone}
           onSettings={() => setSettingsOpen(true)}
           onHelp={() => setHelpOpen(true)}

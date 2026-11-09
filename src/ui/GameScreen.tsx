@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   DIFFICULTIES,
-  LEVELS_PER_DIFFICULTY,
+  LEVELS_PER_TRACK,
+  trackName,
   UNLOCK_AFTER,
 } from '../core/difficulty';
 import { buildLevel } from '../core/levels';
 import { headOf } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
-import type { ClearResult } from '../game/progress';
+import type { ClearResult, Track } from '../game/progress';
 import {
   arrowsLeft,
   hintFor,
@@ -26,14 +27,15 @@ import { Board3D } from '../view/Board3D';
 import { webglAvailable, type LayerView } from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
 import { ANIM, arrowPath, slideDistance } from '../view/path';
-import { playSound } from '../view/sound';
 import { oneColorFor } from '../view/palette';
+import { playSound } from '../view/sound';
 import { accentFor } from './accents';
 import { CoachMark } from './CoachMark';
 import { Modal, ModalButton } from './Modal';
 
 interface Props {
   readonly difficulty: number;
+  readonly layers: number;
   readonly level: number;
   readonly hints: number;
   readonly colorMode: ColorMode;
@@ -42,15 +44,16 @@ interface Props {
   readonly arrowSpeed: ArrowSpeed;
   readonly showLayers: boolean;
   readonly showDots: boolean;
-  /** Clears needed to open the next difficulty, for the win line. */
-  readonly clearedInDifficulty: number;
-  readonly nextUnlocked: boolean;
+  /** Clears so far in this track, for the win line. */
+  readonly clearedInTrack: number;
+  /** Tracks that clearing UNLOCK_AFTER levels here opens, and that are still locked. */
+  readonly pendingTracks: readonly Track[];
   readonly onHintUsed: () => void;
   /** Called once when the level is won. Returns what the clear earned. */
   readonly onWin: () => ClearResult;
   readonly onNext: () => void;
   readonly onLevels: () => void;
-  /** First-time card on Easy 1 (FR coach mark). */
+  /** First-time card on Tiny 1 (FR coach mark). */
   readonly showCoach: boolean;
   readonly onCoachDone: () => void;
   readonly onSettings: () => void;
@@ -76,6 +79,7 @@ function slideSeconds(
 
 export function GameScreen({
   difficulty,
+  layers,
   level,
   hints,
   colorMode,
@@ -84,8 +88,8 @@ export function GameScreen({
   arrowSpeed,
   showLayers,
   showDots,
-  clearedInDifficulty,
-  nextUnlocked,
+  clearedInTrack,
+  pendingTracks,
   onHintUsed,
   onWin,
   onNext,
@@ -97,8 +101,8 @@ export function GameScreen({
   onHome,
 }: Props) {
   const board = useMemo(
-    () => buildLevel(difficulty, level),
-    [difficulty, level],
+    () => buildLevel(difficulty, layers, level),
+    [difficulty, layers, level],
   );
   const [session, setSession] = useState<Session>(() => startSession(board));
   const [leaving, setLeaving] = useState<ReadonlyMap<number, Arrow>>(new Map());
@@ -199,8 +203,7 @@ export function GameScreen({
   };
 
   const left = arrowsLeft(session).length;
-  const lastLevel = level >= LEVELS_PER_DIFFICULTY;
-  const nextName = DIFFICULTIES[difficulty + 1]?.name;
+  const lastLevel = level >= LEVELS_PER_TRACK;
 
   return (
     <main className="mx-auto flex h-dvh max-w-xl flex-col lg:max-w-none lg:flex-row">
@@ -215,11 +218,10 @@ export function GameScreen({
         </button>
         <div className="text-center leading-tight lg:text-left">
           <h1 className="font-bold text-white">
-            {spec?.name} <span className={accent.text}>{level}</span>
+            {spec?.name} <span className={accent.text}>{layers}L</span>
           </h1>
           <p className="text-xs text-slate-400">
-            {spec?.layers} layer{spec && spec.layers > 1 ? 's' : ''} ·{' '}
-            {board.width}×{board.height}
+            Level {level} · {board.width}×{board.height}
           </p>
         </div>
         <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-3">
@@ -257,7 +259,7 @@ export function GameScreen({
           )}
           {gl ? (
             <Board3D
-              key={`${difficulty}:${level}:${lowPower}`}
+              key={`${difficulty}:${layers}:${level}:${lowPower}`}
               level={board}
               alive={session.alive}
               oneColor={oneColor}
@@ -412,23 +414,28 @@ export function GameScreen({
           </div>
           <h2 className="text-2xl font-bold text-white">Cleared!</h2>
           <p className="mt-1 text-sm text-slate-400">
-            {spec?.name} {level}
+            {trackName(difficulty, layers)} · {level}
           </p>
           {result.hintGifted && (
             <p className="mt-3 rounded-xl bg-slate-800 p-2 text-sm font-semibold text-teal-300">
               +1 hint earned
             </p>
           )}
-          {result.unlocked !== undefined ? (
+          {result.unlocked.length > 0 ? (
             <p className="mt-3 rounded-xl bg-amber-400 p-2 text-sm font-bold text-slate-950">
-              {DIFFICULTIES[result.unlocked]?.name} unlocked!
+              {result.unlocked
+                .map((t) => trackName(t.difficulty, t.layers))
+                .join(' and ')}{' '}
+              unlocked!
             </p>
           ) : (
-            nextName &&
-            !nextUnlocked && (
+            pendingTracks.length > 0 && (
               <p className="mt-3 text-xs text-slate-400">
-                {Math.min(clearedInDifficulty, UNLOCK_AFTER)} / {UNLOCK_AFTER}{' '}
-                to unlock {nextName}
+                {Math.min(clearedInTrack, UNLOCK_AFTER)} / {UNLOCK_AFTER} to
+                unlock{' '}
+                {pendingTracks
+                  .map((t) => trackName(t.difficulty, t.layers))
+                  .join(' and ')}
               </p>
             )
           )}

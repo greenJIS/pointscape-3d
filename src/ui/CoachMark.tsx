@@ -3,7 +3,7 @@ interface Props {
 }
 
 /**
- * First-time hint on Easy 1. A bottom card that sits below the board, so it never covers
+ * First-time hint on Tiny 1. A bottom card that sits below the board, so it never covers
  * an arrow. It is the only popup that can appear during a level.
  */
 export function CoachMark({ onDone }: Props) {

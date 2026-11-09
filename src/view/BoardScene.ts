@@ -1211,8 +1211,10 @@ export class BoardScene {
     let moving = false;
     const layers = this.level.layers;
     const left = new Array<boolean>(layers).fill(false);
+    // A line that crosses layers keeps every layer it touches.
     for (const v of this.views.values()) {
-      if (v.state !== 'hidden') left[v.layer] = true;
+      if (v.state === 'hidden') continue;
+      for (const c of v.arrow.cells) left[c.z] = true;
     }
     const won = left.every((l) => !l);
     for (let z = 0; z < layers; z++) {

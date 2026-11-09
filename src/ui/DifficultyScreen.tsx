@@ -1,12 +1,15 @@
 import {
   DIFFICULTIES,
-  LEVELS_PER_DIFFICULTY,
+  LAYER_COUNTS,
+  LEVELS_PER_TRACK,
+  trackName,
   UNLOCK_AFTER,
 } from '../core/difficulty';
 import { levelParams } from '../core/levels';
 import {
   clearedCount,
-  isDifficultyUnlocked,
+  isTrackUnlocked,
+  prerequisite,
   type Progress,
 } from '../game/progress';
 import { accentFor } from './accents';
@@ -14,11 +17,12 @@ import { accentFor } from './accents';
 interface Props {
   readonly progress: Progress;
   readonly unlockAll: boolean;
-  readonly onPick: (difficulty: number) => void;
+  readonly onPick: (difficulty: number, layers: number) => void;
   readonly onLocked: (message: string) => void;
   readonly onBack: () => void;
 }
 
+/** One row per difficulty, one button per board size (1L to 5L). */
 export function DifficultyScreen({
   progress,
   unlockAll,
@@ -37,45 +41,60 @@ export function DifficultyScreen({
         >
           ←
         </button>
-        <h1 className="text-xl font-bold text-white">Choose difficulty</h1>
+        <h1 className="text-xl font-bold text-white">Choose a level set</h1>
       </header>
-      <ul className="grid gap-3 lg:grid-cols-3">
+      <p className="text-sm text-slate-400">
+        Difficulty sets the grid size. Layers set how many boards are stacked.
+      </p>
+      <ul className="flex flex-col gap-3">
         {DIFFICULTIES.map((d, i) => {
-          const open = isDifficultyUnlocked(i, progress, unlockAll);
           const accent = accentFor(i);
-          const side = levelParams(i, 1).width;
-          const prev = DIFFICULTIES[i - 1];
+          const side = levelParams(i, 1, 1).width;
           return (
-            <li key={d.id}>
-              <button
-                type="button"
-                onClick={() =>
-                  open
-                    ? onPick(i)
-                    : onLocked(
-                        `Clear ${UNLOCK_AFTER} ${prev?.name ?? ''} levels to unlock`,
-                      )
-                }
-                className={`flex w-full items-center gap-4 rounded-2xl border border-slate-700 bg-slate-900 p-4 text-left active:scale-[0.98] lg:h-full lg:flex-col lg:items-start ${open ? '' : 'opacity-50'}`}
-              >
-                <span
-                  className={`grid size-14 shrink-0 place-items-center rounded-xl text-xl font-black text-slate-950 ${accent.bg}`}
-                >
-                  {open ? d.layers : '🔒'}
+            <li
+              key={d.id}
+              className="rounded-2xl border border-slate-700 bg-slate-900 p-3"
+            >
+              <h2 className={`mb-2 font-bold ${accent.text}`}>
+                {d.name}{' '}
+                <span className="text-sm font-normal text-slate-400">
+                  {side}×{side}
                 </span>
-                <span>
-                  <span className="block font-bold text-white">{d.name}</span>
-                  <span className="block text-sm text-slate-400">
-                    {d.layers} layer{d.layers > 1 ? 's' : ''} · {side}×{side}{' '}
-                    start
-                  </span>
-                  <span className="block text-sm text-slate-400">
-                    {open
-                      ? `${clearedCount(progress, i)} / ${LEVELS_PER_DIFFICULTY} cleared`
-                      : `Clear ${UNLOCK_AFTER} ${prev?.name ?? ''} levels`}
-                  </span>
-                </span>
-              </button>
+              </h2>
+              <div className="grid grid-cols-5 gap-2">
+                {LAYER_COUNTS.map((layers) => {
+                  const open = isTrackUnlocked(i, layers, progress, unlockAll);
+                  const need = prerequisite(i, layers);
+                  return (
+                    <button
+                      key={layers}
+                      type="button"
+                      aria-label={trackName(i, layers)}
+                      onClick={() =>
+                        open
+                          ? onPick(i, layers)
+                          : onLocked(
+                              need
+                                ? `Clear ${UNLOCK_AFTER} ${trackName(need.difficulty, need.layers)} levels to unlock`
+                                : 'Locked',
+                            )
+                      }
+                      className={`flex flex-col items-center rounded-xl border border-slate-700 bg-slate-800 py-2 active:scale-95 ${open ? '' : 'opacity-40'}`}
+                    >
+                      <span
+                        className={`grid size-9 place-items-center rounded-lg font-black text-slate-950 ${accent.bg}`}
+                      >
+                        {open ? `${layers}L` : '🔒'}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {open
+                          ? `${clearedCount(progress, i, layers)}/${LEVELS_PER_TRACK}`
+                          : ' '}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </li>
           );
         })}

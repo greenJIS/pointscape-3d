@@ -6,17 +6,13 @@ board. Tap one that is blocked and you lose a heart. Clear the board to win.
 It is a remake of the idea behind the mobile game "Pointers" (Arrows). It reuses none of that game's art, audio, levels
 or name.
 
-## Difficulties
+## Level sets
 
-| Difficulty | Layers | Levels |
-| ---------- | ------ | ------ |
-| Easy       | 1      | 100    |
-| Medium     | 2      | 100    |
-| Hard       | 3      | 100    |
-| Extreme    | 4      | 100    |
-| Insane     | 5      | 100    |
-
-Easy is open from the start. Clearing 10 levels of one difficulty opens the next. There is no Undo.
+Two axes. Difficulty is Tiny (8x8), Compact (12x12), Large (18x18), Vast (24x24) or Massive (32x32): it sets the
+grid size. Layers are 1L to 5L: the number of stacked layers. Each pair is a track of 100 levels, so there are 25
+tracks and 2,500 levels. Tiny 1L is open from the start. Clearing 10 levels of a track opens the next layer count in
+its row (Tiny 1L opens Tiny 2L, and so on). Clearing 10 levels of a 1L track also opens the 1L track of the next
+difficulty. There is no Undo.
 
 ## Getting started
 

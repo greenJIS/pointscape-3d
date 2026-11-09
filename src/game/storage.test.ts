@@ -25,7 +25,7 @@ describe('saving', () => {
   it('round-trips a save', () => {
     const store = memoryStore();
     const save = {
-      progress: recordClear(emptyProgress(), 0, 1).progress,
+      progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
         colorMode: 'one' as const,
         arrowSpeed: 'fast' as const,
@@ -54,20 +54,23 @@ describe('saving', () => {
   it('drops invalid levels and clamps a bad last position', () => {
     const text = JSON.stringify({
       progress: {
+        v: 2,
         cleared: [[3, 3, 1, 0, 101, 'x', 2.5], 'no'],
         hints: -4,
-        last: { difficulty: 9, level: 1 },
+        last: { difficulty: 9, layers: 1, level: 1 },
       },
     });
     const p = parseSave(text).progress;
     expect(p.cleared[0]).toEqual([]);
     expect(p.cleared[1]).toEqual([]);
     expect(p.hints).toBe(3);
-    expect(p.last).toEqual({ difficulty: 0, level: 1 });
+    expect(p.last).toEqual({ difficulty: 0, layers: 1, level: 1 });
   });
 
   it('sorts and de-duplicates cleared levels', () => {
-    const text = JSON.stringify({ progress: { cleared: [[3, 1, 3, 2]] } });
+    const text = JSON.stringify({
+      progress: { v: 2, cleared: [[3, 1, 3, 2]] },
+    });
     expect(parseSave(text).progress.cleared[0]).toEqual([1, 2, 3]);
   });
 
@@ -88,10 +91,30 @@ describe('saving', () => {
   });
 });
 
+describe('old saves', () => {
+  it('drops levels saved before layers and difficulty were separate, keeps the rest', () => {
+    const text = JSON.stringify({
+      progress: {
+        cleared: [[1, 2, 3], [4]],
+        hints: 7,
+        seenTutorial: true,
+        last: { difficulty: 1, level: 5 },
+      },
+      name: 'Otter',
+    });
+    const save = parseSave(text);
+    expect(save.progress.cleared.every((l) => l.length === 0)).toBe(true);
+    expect(save.progress.last).toEqual({ difficulty: 0, layers: 1, level: 1 });
+    expect(save.progress.hints).toBe(7);
+    expect(save.progress.seenTutorial).toBe(true);
+    expect(save.name).toBe('Otter');
+  });
+});
+
 describe('reset progress', () => {
   it('keeps the name and settings (FR-67)', () => {
     const save = {
-      progress: recordClear(emptyProgress(), 0, 1).progress,
+      progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
         colorMode: 'one' as const,
         arrowSpeed: 'fast' as const,
