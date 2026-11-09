@@ -14,6 +14,7 @@ import {
   type ClearResult,
 } from './game/progress';
 import type { Settings } from './game/settings';
+import { useDark } from './game/useDark';
 import {
   loadSave,
   resetProgress,
@@ -71,6 +72,7 @@ export default function App() {
   }, [toast]);
 
   const { progress } = save;
+  const dark = useDark(save.settings.theme);
 
   const play = useCallback(
     (difficulty: number, layers: number, level: number) => {
@@ -199,6 +201,7 @@ export default function App() {
           layers={layers}
           level={level}
           hints={progress.hints}
+          dark={dark}
           colorMode={save.settings.colorMode}
           oneColor={save.settings.oneColor}
           lowPower={save.settings.lowPower}
@@ -260,14 +263,14 @@ export default function App() {
       )}
       {helpOpen && <HowToPlayScreen onBack={() => setHelpOpen(false)} />}
       {unlockAll && (
-        <span className="fixed top-2 left-1/2 z-40 -translate-x-1/2 rounded-full bg-amber-400 px-3 py-0.5 text-xs font-bold text-slate-950">
+        <span className="fixed top-2 left-1/2 z-40 -translate-x-1/2 rounded-full bg-amber-400 px-3 py-0.5 text-xs font-bold text-ink">
           DEV: all unlocked
         </span>
       )}
       {toast !== null && (
         <div
           role="status"
-          className="fixed top-12 left-1/2 z-40 -translate-x-1/2 rounded-full bg-teal-300 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg"
+          className="fixed top-12 left-1/2 z-40 -translate-x-1/2 rounded-full bg-teal-300 px-4 py-2 text-sm font-semibold text-ink shadow-lg"
         >
           {toast}
         </div>

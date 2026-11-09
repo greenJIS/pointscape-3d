@@ -1,5 +1,7 @@
 export type ColorMode = 'multi' | 'one';
 
+export type ThemeMode = 'light' | 'dark';
+
 export type ArrowSpeed = 'slow' | 'normal' | 'fast';
 
 /** How much faster than the design demo each arrow speed plays the exit slide. */
@@ -10,6 +12,7 @@ export const ARROW_SPEED_RATE: Readonly<Record<ArrowSpeed, number>> = {
 };
 
 export interface Settings {
+  readonly theme: ThemeMode;
   readonly colorMode: ColorMode;
   /** One-color mode: the palette colour every arrow uses. */
   readonly oneColor: string;
@@ -23,8 +26,9 @@ export interface Settings {
 
 /** Multi-color is the default (FR-37). */
 export const defaultSettings = (): Settings => ({
+  theme: 'light',
   colorMode: 'multi',
-  oneColor: '#2dd4bf',
+  oneColor: '#00f5d0',
   arrowSpeed: 'normal',
   showLayers: true,
   showDots: false,

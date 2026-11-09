@@ -78,6 +78,7 @@ export function parseSave(text: string | null): SaveData {
 
   const s = isRecord(raw.settings) ? raw.settings : {};
   const settings: Settings = {
+    theme: s.theme === 'dark' ? 'dark' : 'light',
     colorMode: s.colorMode === 'one' ? 'one' : 'multi',
     oneColor:
       typeof s.oneColor === 'string' && POOL.includes(s.oneColor)

@@ -28,8 +28,9 @@ describe('saving', () => {
     const save = {
       progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
+        theme: 'dark' as const,
         colorMode: 'one' as const,
-        oneColor: '#2dd4bf',
+        oneColor: '#00f5d0',
         arrowSpeed: 'fast' as const,
         showLayers: false,
         showDots: true,
@@ -118,8 +119,9 @@ describe('reset progress', () => {
     const save = {
       progress: recordClear(emptyProgress(), 0, 1, 1).progress,
       settings: {
+        theme: 'dark' as const,
         colorMode: 'one' as const,
-        oneColor: '#2dd4bf',
+        oneColor: '#00f5d0',
         arrowSpeed: 'fast' as const,
         showLayers: false,
         showDots: true,
@@ -161,5 +163,10 @@ describe('player name', () => {
       settings: { colorMode: 'one', oneColor: '#123456' },
     });
     expect(parseSave(text).settings.oneColor).toBe(defaultSettings().oneColor);
+  });
+
+  it('falls back to the light theme for an unknown theme value', () => {
+    const text = JSON.stringify({ settings: { theme: 'neon' } });
+    expect(parseSave(text).settings.theme).toBe('light');
   });
 });

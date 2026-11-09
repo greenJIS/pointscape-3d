@@ -37,6 +37,8 @@ interface Props {
   readonly layers: number;
   readonly level: number;
   readonly hints: number;
+  /** True for the dark look. The 3D scene needs it, since it does not use CSS. */
+  readonly dark: boolean;
   readonly colorMode: ColorMode;
   /** The colour picked in Settings for one-color mode. */
   readonly oneColor: string;
@@ -83,6 +85,7 @@ export function GameScreen({
   layers,
   level,
   hints,
+  dark,
   colorMode,
   oneColor: chosenColor,
   lowPower,
@@ -219,8 +222,11 @@ export function GameScreen({
           II
         </button>
         <div className="text-center leading-tight lg:text-left">
-          <h1 className="font-bold text-white">
-            {spec?.name} <span className={accent.text}>{layers}L</span>
+          <h1 className="font-bold text-strong">
+            {spec?.name}{' '}
+            <span className={`rounded-full bg-night px-1.5 ${accent.text}`}>
+              {layers}L
+            </span>
           </h1>
           <p className="text-xs text-slate-400">
             Level {level} · {board.width}×{board.height}
@@ -269,6 +275,7 @@ export function GameScreen({
               hintId={hintId}
               leaving={leaving}
               lowPower={lowPower}
+              dark={dark}
               slideRate={slideRate}
               layerView={layerView}
               rippleFrom={rippleFrom}
@@ -294,7 +301,7 @@ export function GameScreen({
         <div className="rounded-xl bg-slate-900 p-3 text-sm">
           <div className="flex items-end justify-between">
             <span className="text-slate-400">Arrows left</span>
-            <b className="text-3xl text-white">{left}</b>
+            <b className="text-3xl text-strong">{left}</b>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
             <div
@@ -354,7 +361,7 @@ export function GameScreen({
                 X-ray
               </label>
             </div>
-            <p className="mt-2 text-slate-500">
+            <p className="mt-2 text-slate-400">
               Drag to tilt. Pinch or scroll to zoom.
             </p>
           </div>
@@ -379,7 +386,7 @@ export function GameScreen({
 
       {paused && session.status === 'playing' && (
         <Modal>
-          <h2 className="text-2xl font-bold text-white">Paused</h2>
+          <h2 className="text-2xl font-bold text-strong">Paused</h2>
           <div className="mt-5 flex flex-col gap-2">
             <ModalButton
               label="Resume"
@@ -410,21 +417,21 @@ export function GameScreen({
       {session.status === 'won' && result && winShown && (
         <Modal>
           <div
-            className={`mx-auto mb-2 grid size-16 place-items-center rounded-full text-3xl text-slate-950 ${accent.bg}`}
+            className={`mx-auto mb-2 grid size-16 place-items-center rounded-full text-3xl text-ink ${accent.bg}`}
           >
             ✓
           </div>
-          <h2 className="text-2xl font-bold text-white">Cleared!</h2>
+          <h2 className="text-2xl font-bold text-strong">Cleared!</h2>
           <p className="mt-1 text-sm text-slate-400">
             {trackName(difficulty, layers)} · {level}
           </p>
           {result.hintGifted && (
-            <p className="mt-3 rounded-xl bg-slate-800 p-2 text-sm font-semibold text-teal-300">
+            <p className="mt-3 rounded-xl bg-night p-2 text-sm font-semibold text-link">
               +1 hint earned
             </p>
           )}
           {result.unlocked.length > 0 ? (
-            <p className="mt-3 rounded-xl bg-amber-400 p-2 text-sm font-bold text-slate-950">
+            <p className="mt-3 rounded-xl bg-amber-400 p-2 text-sm font-bold text-ink">
               {result.unlocked
                 .map((t) => trackName(t.difficulty, t.layers))
                 .join(' and ')}{' '}
@@ -456,7 +463,7 @@ export function GameScreen({
       {session.status === 'lost' && loseShown && (
         <Modal>
           <div className="text-5xl">💔</div>
-          <h2 className="mt-2 text-2xl font-bold text-white">Out of hearts</h2>
+          <h2 className="mt-2 text-2xl font-bold text-strong">Out of hearts</h2>
           <p className="mt-1 text-sm text-slate-400">
             Look for arrows with a clear path first.
           </p>

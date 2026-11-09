@@ -72,10 +72,10 @@ export function LevelsScreen({
         onClick={() => pick(d, l)}
         className={`flex-1 rounded-lg py-2 text-xs font-bold ${
           active
-            ? `${accentFor(d).bg} text-slate-950`
+            ? `${accentFor(d).bg} text-ink`
             : open
               ? 'bg-slate-800 text-slate-300'
-              : 'bg-slate-900 text-slate-600'
+              : 'bg-slate-900 text-slate-500'
         }`}
       >
         {open ? label : '🔒'}
@@ -94,7 +94,7 @@ export function LevelsScreen({
         >
           ←
         </button>
-        <h1 className="text-xl font-bold text-white">
+        <h1 className="text-xl font-bold text-strong">
           {trackName(difficulty, layers)}
         </h1>
       </header>
@@ -146,10 +146,10 @@ export function LevelsScreen({
           const cleared = isCleared(progress, difficulty, layers, l);
           const isCurrent = l === current;
           const tone = cleared
-            ? `${accent.bg} text-slate-950`
+            ? `${accent.bg} text-ink`
             : open
-              ? `border-2 ${accent.border} bg-slate-900 text-white`
-              : 'bg-slate-900 text-slate-600';
+              ? `border-2 ${accent.border} bg-slate-900 text-strong`
+              : 'bg-slate-900 text-slate-500';
           return (
             <li key={l}>
               <button
@@ -158,7 +158,7 @@ export function LevelsScreen({
                 disabled={!open}
                 onClick={() => onPlay(difficulty, layers, l)}
                 aria-label={`Level ${l}${cleared ? ', cleared' : open ? '' : ', locked'}`}
-                className={`grid aspect-square w-full place-items-center rounded-xl text-sm font-bold ${tone} ${isCurrent ? 'ring-2 ring-white/60' : ''}`}
+                className={`grid aspect-square w-full place-items-center rounded-xl text-sm font-bold ${tone} ${isCurrent ? 'ring-2 ring-strong/60' : ''}`}
               >
                 {cleared ? '✓' : open ? l : '🔒'}
               </button>

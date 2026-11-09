@@ -2,17 +2,65 @@
 
 @theme {
   --color-plate: #1e293b;
-  --color-pool-orange: #fb923c;
-  --color-pool-yellow: #facc15;
-  --color-pool-teal: #2dd4bf;
-  --color-pool-indigo: #818cf8;
-  --color-pool-magenta: #e879f9;
-  --color-blocked: #f87171;
+  /* Vivid game colours. The same in both themes. They replace Tailwind's softer shades. */
+  --color-pool-orange: #ff8a00;
+  --color-pool-yellow: #ffe600;
+  --color-pool-teal: #00f5d0;
+  --color-pool-indigo: #5b6bff;
+  --color-pool-magenta: #ff2bd6;
+  --color-blocked: #ff4d5e;
+  --color-teal-200: #7dfbe8;
+  --color-teal-300: #00f5d0;
+  --color-teal-500: #00c9a7;
+  --color-teal-700: #008c75;
+  --color-indigo-400: #5b6bff;
+  --color-fuchsia-400: #ff2bd6;
+  --color-orange-400: #ff8a00;
+  --color-yellow-400: #ffe600;
+  --color-amber-400: #ffc400;
+  --color-red-400: #ff4d5e;
+  /* Headings and key text. Flips with the theme. */
+  --color-strong: #ffffff;
+  /* Dark text for bright buttons, in both themes. */
+  --color-ink: #020617;
+  /* Dark chip behind coloured text, so one vivid colour reads in both themes. */
+  --color-night: #0b1220;
+  --color-link: #00f5d0;
+  --color-caution: #ffc400;
+  --color-danger: #ff4d5e;
+  --color-accent-0: #00f5d0;
+  --color-accent-1: #7c8aff;
+  --color-accent-2: #ff55e0;
+  --color-accent-3: #ff9a1f;
+  --color-accent-4: #ffe600;
+}
+
+/*
+ * Light theme: the slate scale runs backwards, so every slate class in the UI turns light
+ * without a second set of classes.
+ */
+[data-theme='light'] {
+  color-scheme: light;
+  --color-strong: #0f172a;
+  --color-slate-950: #f1f5f9;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #e2e8f0;
+  --color-slate-700: #cbd5e1;
+  --color-slate-600: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-300: #334155;
+  --color-slate-200: #1e293b;
+  --color-plate: #e2e8f0;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 /* 3D wordmark on Home and the name screen. The extrusion is stacked text-shadow. */
 @utility logo-word {
-  color: #f1f5f9;
+  color: var(--color-slate-200);
   text-shadow:
     1px 1px 0 #64748b,
     2px 2px 0 #64748b,
@@ -23,7 +71,7 @@
 }
 
 @utility logo-3d {
-  color: #5eead4;
+  color: #00f5d0;
   text-shadow:
     1px 1px 0 #14b8a6,
     2px 2px 0 #14b8a6,

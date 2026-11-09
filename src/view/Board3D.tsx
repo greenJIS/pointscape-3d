@@ -10,6 +10,7 @@ interface Props {
   readonly hintId: number | null;
   readonly leaving: ReadonlyMap<number, Arrow>;
   readonly lowPower: boolean;
+  readonly dark: boolean;
   /** Exit slide speed, 1 being the demo's. */
   readonly slideRate: number;
   readonly layerView: LayerView;
@@ -34,6 +35,7 @@ export function Board3D({
   hintId,
   leaving,
   lowPower,
+  dark,
   slideRate,
   layerView,
   rippleFrom,
@@ -45,7 +47,13 @@ export function Board3D({
   const sceneRef = useRef<BoardScene | null>(null);
   const tapRef = useRef(onTap);
   const viewRef = useRef(onViewChange);
+  const darkRef = useRef(dark);
   const seenLeaving = useRef(new Set<number>());
+
+  useEffect(() => {
+    darkRef.current = dark;
+    sceneRef.current?.setDark(dark);
+  }, [dark]);
 
   useEffect(() => {
     tapRef.current = onTap;
@@ -57,6 +65,7 @@ export function Board3D({
     if (!canvas) return;
     const scene = new BoardScene(canvas, level, {
       lowPower,
+      dark: darkRef.current,
       onTap: (id) => tapRef.current(id),
       onViewChange: (d) => viewRef.current(d),
     });

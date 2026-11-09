@@ -3,14 +3,14 @@ import type { Level } from '../core/types';
 
 /** The five arrow colours (FR-31). Same values as the `@theme` tokens in index.css. */
 export const POOL: readonly string[] = [
-  '#fb923c',
-  '#facc15',
-  '#2dd4bf',
-  '#818cf8',
-  '#e879f9',
+  '#ff8a00',
+  '#ffe600',
+  '#00f5d0',
+  '#5b6bff',
+  '#ff2bd6',
 ];
 
-export const BLOCKED = '#f87171';
+export const BLOCKED = '#ff4d5e';
 
 /** Colour per arrow id with touching arrows kept apart where the pool allows (FR-36). */
 export const arrowColors = (level: Level): Map<number, string> => {

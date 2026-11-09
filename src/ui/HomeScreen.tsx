@@ -49,20 +49,22 @@ export function HomeScreen({
       <HeroBoard />
       <div className="flex w-full max-w-sm flex-col items-center lg:items-start">
         <Logo className="text-4xl lg:items-start" />
-        <p className="mt-3 text-lg font-semibold text-teal-300">Hi, {name}</p>
+        <p className="mt-3 w-fit rounded-full bg-night px-3 py-0.5 text-lg font-semibold text-link">
+          Hi, {name}
+        </p>
         <p className="mt-1 text-slate-400">Tap arrows. Clear the board.</p>
         <div className="mt-6 flex w-full flex-col gap-3">
           <button
             type="button"
             onClick={onPlay}
-            className="rounded-2xl bg-teal-300 py-4 text-lg font-bold text-slate-950 active:scale-[0.97]"
+            className="rounded-2xl bg-teal-300 py-4 text-lg font-bold text-ink active:scale-[0.97]"
           >
             {label}
           </button>
           <button
             type="button"
             onClick={onAllLevels}
-            className="rounded-2xl bg-slate-800 py-3 font-semibold text-white active:scale-[0.97]"
+            className="rounded-2xl bg-slate-800 py-3 font-semibold text-strong active:scale-[0.97]"
           >
             All levels
           </button>

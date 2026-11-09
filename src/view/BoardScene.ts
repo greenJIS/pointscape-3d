@@ -29,6 +29,8 @@ export interface LayerView {
 
 export interface SceneOptions {
   readonly lowPower: boolean;
+  /** Start in the dark look. `setDark` changes it later. */
+  readonly dark: boolean;
   readonly onTap: (arrowId: number) => void;
   /** Called when the view moves away from, or back to, its opening state. */
   readonly onViewChange?: (isDefault: boolean) => void;
@@ -73,8 +75,11 @@ const PICK_LAYER = 1;
 const TUBE_RADIUS = 0.14;
 const PICK_RADIUS = 0.2;
 const CORNER = 0.34;
-const PLATE = new THREE.Color('#1e293b');
-const DOT_COLOR = new THREE.Color('#475569');
+/** Scene colours for each look. `board` is the backdrop that dots fade into. */
+const LOOKS = {
+  dark: { board: '#1e293b', plate: '#475569', dot: '#475569', sky: '#e2e8f0' },
+  light: { board: '#e2e8f0', plate: '#ffffff', dot: '#94a3b8', sky: '#ffffff' },
+} as const;
 /** Direction toward the key light that casts the drop shadows, in the scene. */
 const KEY_DIRECTION = new THREE.Vector3(-4, 7, 9).normalize();
 /** How far a shadow lands from its arrow, in cells, and how far behind it. */
@@ -327,6 +332,10 @@ export class BoardScene {
   private batchDirty = true;
   private lastRebuild = 0;
   private readonly dotAlpha: Float32Array[] = [];
+  private look: (typeof LOOKS)[keyof typeof LOOKS] = LOOKS.dark;
+  private readonly boardColor = new THREE.Color();
+  private readonly dotColor = new THREE.Color();
+  private sky: THREE.HemisphereLight | null = null;
   private dotsDirty = true;
   private dotsFading = false;
   private lastDots = performance.now() / 1000;
@@ -364,7 +373,8 @@ export class BoardScene {
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 2),
     );
-    this.scene.background = new THREE.Color('#1e293b');
+    this.look = opts.dark ? LOOKS.dark : LOOKS.light;
+    this.scene.background = new THREE.Color(this.look.board);
     this.scene.add(this.root);
     this.root.add(this.preview);
     this.setupLights();
@@ -389,7 +399,8 @@ export class BoardScene {
       this.scene.environmentIntensity = 0.3;
       pmrem.dispose();
     }
-    this.scene.add(new THREE.HemisphereLight('#e2e8f0', '#1e293b', 0.35));
+    this.sky = new THREE.HemisphereLight(this.look.sky, this.look.board, 0.35);
+    this.scene.add(this.sky);
     const key = new THREE.DirectionalLight('#ffffff', 1.7);
     key.position.set(-4, 7, 9);
     this.scene.add(key);
@@ -512,7 +523,7 @@ export class BoardScene {
     for (let z = 0; z < layers; z++) {
       // See-through from both sides, so the layers show when the board is turned around.
       const mat = new THREE.MeshBasicMaterial({
-        color: '#475569',
+        color: this.look.plate,
         transparent: true,
         opacity: LAYER_OPACITY,
         side: THREE.DoubleSide,
@@ -535,7 +546,7 @@ export class BoardScene {
         );
         dots.setMatrixAt(i, m);
       }
-      dots.setColorAt(0, DOT_COLOR);
+      dots.setColorAt(0, this.dotColor.set(this.look.dot));
       dots.userData.layer = z;
       this.dotAlpha.push(new Float32Array(width * height).fill(1));
       this.root.add(dots);
@@ -926,7 +937,7 @@ export class BoardScene {
         if (next > 0 && next < 1) fading = true;
         let a = next;
         let scale = 1;
-        color.copy(DOT_COLOR);
+        color.set(this.look.dot);
         if (this.win) {
           const reach =
             Math.hypot(x - this.win.from.x, y - this.win.from.y) *
@@ -941,7 +952,7 @@ export class BoardScene {
             color.set(POOL[(x + y) % POOL.length] ?? '#ffffff');
           }
         }
-        color.lerp(PLATE, 1 - a);
+        color.lerp(this.boardColor.set(this.look.board), 1 - a);
         mesh.setColorAt(i, color);
         m.makeScale(a <= 0.005 ? 0 : scale, a <= 0.005 ? 0 : scale, 1);
         m.setPosition(x - (width - 1) / 2, -(y - (height - 1) / 2), 0);
@@ -960,6 +971,24 @@ export class BoardScene {
   }
 
   // ---- state from the game ----
+
+  /** Switch between the dark and light look. */
+  setDark(dark: boolean): void {
+    const look = dark ? LOOKS.dark : LOOKS.light;
+    if (look === this.look) return;
+    this.look = look;
+    this.scene.background = new THREE.Color(look.board);
+    if (this.sky) {
+      this.sky.color.set(look.sky);
+      this.sky.groundColor.set(look.board);
+    }
+    for (const plate of this.plates) {
+      const mat = plate.material;
+      if (mat instanceof THREE.MeshBasicMaterial) mat.color.set(look.plate);
+    }
+    this.dotsDirty = true;
+    this.dirty = true;
+  }
 
   setOneColor(color: string | null): void {
     this.oneColor = color;

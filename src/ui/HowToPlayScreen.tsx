@@ -144,13 +144,13 @@ export function HowToPlayScreen({ onBack }: Props) {
           >
             ←
           </button>
-          <h1 className="text-xl font-bold text-white">How to play</h1>
+          <h1 className="text-xl font-bold text-strong">How to play</h1>
         </header>
         <div className="grid gap-4 sm:grid-cols-3">
           {CARDS.map((c, i) => (
             <section key={c.title} className="rounded-2xl bg-slate-900 p-4">
               {c.picture}
-              <h2 className="mt-3 font-bold text-white">
+              <h2 className="mt-3 font-bold text-strong">
                 {i + 1}. {c.title}
               </h2>
               <p className="mt-1 text-sm text-slate-400">{c.text}</p>

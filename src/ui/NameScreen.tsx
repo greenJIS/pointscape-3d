@@ -30,15 +30,15 @@ export function NameScreen({ onDone }: Props) {
           maxLength={MAX_NAME_LENGTH}
           autoComplete="off"
           placeholder="Your name"
-          className="mt-2 w-full rounded-2xl border-2 border-slate-700 bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-white outline-none focus:border-teal-300"
+          className="mt-2 w-full rounded-2xl border-2 border-slate-700 bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-strong outline-none focus:border-teal-300"
         />
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-slate-400">
           Up to {MAX_NAME_LENGTH} characters. Saved on this device only. Change
           it any time in Settings.
         </p>
         <button
           type="submit"
-          className="mt-5 w-full rounded-2xl bg-teal-300 py-4 text-lg font-bold text-slate-950 active:scale-[0.97]"
+          className="mt-5 w-full rounded-2xl bg-teal-300 py-4 text-lg font-bold text-ink active:scale-[0.97]"
         >
           Continue
         </button>

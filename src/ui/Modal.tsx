@@ -28,10 +28,10 @@ interface ButtonProps {
 
 export function ModalButton({ label, onClick, primary, danger }: ButtonProps) {
   const tone = primary
-    ? 'bg-teal-300 text-slate-950'
+    ? 'bg-teal-300 text-ink'
     : danger
-      ? 'bg-red-400 text-slate-950'
-      : 'bg-slate-800 text-white';
+      ? 'bg-red-400 text-ink'
+      : 'bg-slate-800 text-strong';
   return (
     <button
       type="button"

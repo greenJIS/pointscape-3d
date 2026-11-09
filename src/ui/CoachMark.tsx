@@ -19,7 +19,7 @@ export function CoachMark({ onDone }: Props) {
       <button
         type="button"
         onClick={onDone}
-        className="mt-3 w-full rounded-xl bg-teal-300 py-2 font-bold text-slate-950 active:scale-[0.97]"
+        className="mt-3 w-full rounded-xl bg-teal-300 py-2 font-bold text-ink active:scale-[0.97]"
       >
         Got it
       </button>
