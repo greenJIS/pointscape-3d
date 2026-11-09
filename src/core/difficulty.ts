@@ -1,19 +1,44 @@
 export interface Difficulty {
-  readonly id: 'easy' | 'medium' | 'hard' | 'extreme' | 'insane';
+  readonly id: 'tiny' | 'compact' | 'large' | 'vast' | 'massive';
   readonly name: string;
-  readonly layers: number;
 }
 
-/** Difficulty is the number of stacked layers (FR-11). */
+/**
+ * The grid size of a level: Tiny 8x8 up to Massive 32x32 (see `SIDE` in levels.ts). It does
+ * not set the number of layers, which comes from `LAYER_COUNTS`.
+ */
 export const DIFFICULTIES: readonly Difficulty[] = [
-  { id: 'easy', name: 'Easy', layers: 1 },
-  { id: 'medium', name: 'Medium', layers: 2 },
-  { id: 'hard', name: 'Hard', layers: 3 },
-  { id: 'extreme', name: 'Extreme', layers: 4 },
-  { id: 'insane', name: 'Insane', layers: 5 },
+  { id: 'tiny', name: 'Tiny' },
+  { id: 'compact', name: 'Compact' },
+  { id: 'large', name: 'Large' },
+  { id: 'vast', name: 'Vast' },
+  { id: 'massive', name: 'Massive' },
 ];
 
-export const LEVELS_PER_DIFFICULTY = 100;
+/** The number of stacked layers, 1L to 5L. Independent of difficulty. */
+export const LAYER_COUNTS: readonly number[] = [1, 2, 3, 4, 5];
 
-/** Levels of one difficulty that must be cleared to open the next. */
+/** Levels in each (difficulty, layers) pair. */
+export const LEVELS_PER_TRACK = 100;
+
+/** Levels of one track that must be cleared to open the tracks that follow it. */
 export const UNLOCK_AFTER = 10;
+
+/** Number of (difficulty, layers) pairs. */
+export const TRACK_COUNT = DIFFICULTIES.length * LAYER_COUNTS.length;
+
+/** Position of a (difficulty, layers) pair in lists that hold one entry per pair. */
+export const trackIndex = (difficulty: number, layers: number): number =>
+  difficulty * LAYER_COUNTS.length + (layers - 1);
+
+export const isTrack = (difficulty: number, layers: number): boolean =>
+  Number.isInteger(difficulty) &&
+  difficulty >= 0 &&
+  difficulty < DIFFICULTIES.length &&
+  Number.isInteger(layers) &&
+  layers >= 1 &&
+  layers <= LAYER_COUNTS.length;
+
+/** Short label for a track, for example "Compact 2L". */
+export const trackName = (difficulty: number, layers: number): string =>
+  `${DIFFICULTIES[difficulty]?.name ?? '?'} ${layers}L`;

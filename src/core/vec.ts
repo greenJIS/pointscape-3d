@@ -24,8 +24,8 @@ export const FRONT = v3(0, 0, 1);
 /** Away from the viewer. */
 export const BACK = v3(0, 0, -1);
 
-/** Directions inside one layer. Easy uses only these (FR-3). */
+/** Directions inside one layer. One-layer boards use only these (FR-3). */
 export const DIRS_PLANAR: readonly Vec3[] = [UP, DOWN, LEFT, RIGHT];
 
-/** Medium to Insane add toward and away from the viewer (FR-3). */
+/** Boards with 2 or more layers add toward and away from the viewer (FR-3). */
 export const DIRS_ALL: readonly Vec3[] = [...DIRS_PLANAR, FRONT, BACK];

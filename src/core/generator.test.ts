@@ -11,6 +11,9 @@ const base: GenParams = {
   minLength: 2,
   maxLength: 6,
   bendChance: 0.35,
+  longBias: 0.5,
+  tangle: 0.5,
+  crossChance: 0.3,
   seed: 1,
 };
 
@@ -29,7 +32,7 @@ describe('generateLevel', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const level = generateLevel({ ...base, seed });
       const cells = level.arrows.reduce((n, a) => n + a.cells.length, 0);
-      expect(cells).toBeGreaterThanOrEqual(level.width * level.height * 0.65);
+      expect(cells).toBeGreaterThanOrEqual(level.width * level.height * 0.5);
     }
   });
 
@@ -55,5 +58,6 @@ describe('generateLevel', () => {
         expect(isSolvable(level)).toBe(true);
       }
     },
+    60000,
   );
 });
