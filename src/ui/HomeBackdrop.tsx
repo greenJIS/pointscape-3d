@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generateLevel } from '../core/generator';
 import { solve } from '../core/solver';
-import type { Arrow, Level } from '../core/types';
+import type { Arrow, Level, Vec3 } from '../core/types';
 import { Board3D } from '../view/Board3D';
 import { webglAvailable, type LayerView } from '../view/BoardScene';
 
@@ -31,12 +31,14 @@ const LAYER_VIEW: LayerView = {
   showLayers: false,
   showDots: true,
 };
+/** Passed to the board once every arrow has gone, to start the finishing tide. */
+const TIDE: Vec3 = { x: 0, y: 0, z: 0 };
 const NO_ARROWS: ReadonlyMap<number, Arrow> = new Map();
 
 /** Seconds before the first tap, between taps, and after the last arrow has gone. */
 const START = 1;
 const STEP = 0.55;
-const END = 2.2;
+const END = 3.4;
 
 interface Props {
   readonly dark: boolean;
@@ -99,7 +101,7 @@ export function HomeBackdrop({ dark, lowPower }: Props) {
         backdrop
         slideRate={1}
         layerView={LAYER_VIEW}
-        rippleFrom={null}
+        rippleFrom={gone >= order.length ? TIDE : null}
         resetCount={0}
         onTap={() => undefined}
         onViewChange={() => undefined}

@@ -77,6 +77,11 @@ const PICK_LAYER = 1;
 const TUBE_RADIUS = 0.14;
 const PICK_RADIUS = 0.2;
 const CORNER = 0.34;
+/** Cells of delay before the tide reaches a dot: it sweeps left to right on a gentle swell. */
+function tideReach(x: number, y: number): number {
+  return x + 2 + Math.sin(y * 0.55) * 1.5;
+}
+
 /** Scene colours for each look. `board` is the backdrop that dots fade into. */
 const LOOKS = {
   dark: { board: '#1e293b', plate: '#475569', dot: '#475569', sky: '#e2e8f0' },
@@ -882,8 +887,9 @@ export class BoardScene {
   }
 
   /**
-   * Win ripple over the grid dots, from the head cell of the last arrow (FR-55). It waits
-   * until that arrow has slid out, then runs layer by layer in stacked levels.
+   * Win tide over the grid dots: a wave that sweeps across the board from left to right (FR-55).
+   * It waits until the last arrow has slid out, then runs layer by layer in stacked levels.
+   * `from` is kept for callers but the tide no longer starts at it.
    */
   ripple(from: Vec3): void {
     if (this.reduceMotion) return;
@@ -894,7 +900,7 @@ export class BoardScene {
   private maxRipple(): number {
     const { width, height, layers } = this.level;
     return (
-      Math.hypot(width, height) * ANIM.rippleDelay +
+      tideReach(width, height) * ANIM.rippleDelay +
       (layers - 1) * ANIM.rippleLayerDelay +
       ANIM.rippleTime
     );
@@ -955,9 +961,7 @@ export class BoardScene {
         let scale = 1;
         color.set(this.look.dot);
         if (this.win) {
-          const reach =
-            Math.hypot(x - this.win.from.x, y - this.win.from.y) *
-            ANIM.rippleDelay;
+          const reach = tideReach(x, y) * ANIM.rippleDelay;
           const u =
             (now - this.win.t0 - reach - z * ANIM.rippleLayerDelay) /
             ANIM.rippleTime;
