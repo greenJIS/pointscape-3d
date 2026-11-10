@@ -34,6 +34,8 @@ export interface SceneOptions {
   /** Draw as a page backdrop: see-through, no plate, and the board covers the whole canvas. */
   readonly backdrop?: boolean;
   readonly onTap: (arrowId: number) => void;
+  /** Called once, after the first frame has been drawn. */
+  readonly onReady?: () => void;
   /** Called when the view moves away from, or back to, its opening state. */
   readonly onViewChange?: (isDefault: boolean) => void;
 }
@@ -315,6 +317,7 @@ export class BoardScene {
   } | null = null;
   private dirty = true;
   private raf = 0;
+  private ready = false;
   private disposed = false;
   private env: THREE.Texture | null = null;
   private readonly pointers = new Map<number, { x: number; y: number }>();
@@ -1247,6 +1250,10 @@ export class BoardScene {
     if (animating || this.dirty) {
       this.dirty = false;
       this.renderFrame();
+      if (!this.ready) {
+        this.ready = true;
+        this.opts.onReady?.();
+      }
     }
     this.raf = requestAnimationFrame(this.loop);
   }

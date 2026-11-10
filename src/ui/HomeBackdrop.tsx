@@ -40,17 +40,20 @@ const END = 3.4;
 interface Props {
   readonly dark: boolean;
   readonly lowPower: boolean;
+  /** Called once the backdrop has drawn, or at once where there is no 3D to draw. */
+  readonly onReady?: () => void;
 }
 
 /**
  * The real 3D board behind Home and the name screen. It plays itself: arrows leave in a
  * solving order with the game's own slide, then they come back and it repeats.
  */
-export function HomeBackdrop({ dark, lowPower }: Props) {
+export function HomeBackdrop({ dark, lowPower, onReady }: Props) {
   const [gl] = useState(webglAvailable);
   const level = useMemo(() => backdropLevel(), []);
   const order = useMemo(() => solve(level) ?? [], [level]);
   const [gone, setGone] = useState(0);
+  const [shown, setShown] = useState(false);
 
   useEffect(() => {
     if (!gl || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -80,11 +83,15 @@ export function HomeBackdrop({ dark, lowPower }: Props) {
     return out;
   }, [level, order, gone]);
 
+  useEffect(() => {
+    if (!gl) onReady?.();
+  }, [gl, onReady]);
+
   if (!gl) return null;
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 opacity-90"
+      className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ${shown ? 'opacity-90' : 'opacity-0'}`}
     >
       <Board3D
         level={level}
@@ -101,6 +108,10 @@ export function HomeBackdrop({ dark, lowPower }: Props) {
         tide={gone >= order.length}
         resetCount={0}
         onTap={() => undefined}
+        onReady={() => {
+          setShown(true);
+          onReady?.();
+        }}
         onViewChange={() => undefined}
       />
     </div>

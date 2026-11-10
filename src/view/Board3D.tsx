@@ -21,6 +21,8 @@ interface Props {
   /** Each change puts the board back to its opening view. */
   readonly resetCount: number;
   readonly onTap: (arrowId: number) => void;
+  /** Called when the board has drawn its first frame. */
+  readonly onReady?: () => void;
   /** True while the view sits at its opening position. */
   readonly onViewChange: (isDefault: boolean) => void;
 }
@@ -44,12 +46,14 @@ export function Board3D({
   tide,
   resetCount,
   onTap,
+  onReady,
   onViewChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<BoardScene | null>(null);
   const tapRef = useRef(onTap);
   const viewRef = useRef(onViewChange);
+  const readyRef = useRef(onReady);
   const darkRef = useRef(dark);
   const seenLeaving = useRef(new Set<number>());
 
@@ -61,7 +65,8 @@ export function Board3D({
   useEffect(() => {
     tapRef.current = onTap;
     viewRef.current = onViewChange;
-  }, [onTap, onViewChange]);
+    readyRef.current = onReady;
+  }, [onTap, onViewChange, onReady]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,6 +76,7 @@ export function Board3D({
       dark: darkRef.current,
       backdrop,
       onTap: (id) => tapRef.current(id),
+      onReady: () => readyRef.current?.(),
       onViewChange: (d) => viewRef.current(d),
     });
     sceneRef.current = scene;
