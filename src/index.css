@@ -88,6 +88,26 @@
   animation: logo-sway 3.6s ease-in-out infinite;
 }
 
+/* Floating panel over the board canvas. Lighter than a dark canvas, whiter than a pale one. */
+@utility hud-card {
+  background: rgb(51 65 85 / 0.92);
+  border: 1px solid rgb(203 213 225 / 0.55);
+  box-shadow:
+    0 2px 0 rgb(203 213 225 / 0.55),
+    0 10px 22px rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(10px);
+  color: #fff;
+}
+
+[data-theme='light'] .hud-card {
+  background: rgb(255 255 255 / 0.96);
+  border-color: rgb(71 85 105 / 0.55);
+  box-shadow:
+    0 2px 0 rgb(71 85 105 / 0.55),
+    0 10px 22px rgb(0 0 0 / 0.25);
+  color: #0f172a;
+}
+
 @keyframes logo-sway {
   0%,
   100% {

@@ -81,7 +81,7 @@ export function FlatBoard({
   return (
     <svg
       viewBox={`-0.2 ${-extra - 0.2} ${level.width + extra + 0.4} ${level.height + extra + 0.4}`}
-      className="size-full touch-none rounded-2xl bg-slate-800"
+      className="size-full touch-none bg-slate-800"
       role="group"
       aria-label="Game board"
     >

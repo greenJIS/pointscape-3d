@@ -1338,17 +1338,17 @@ export class BoardScene {
           reach = Math.max(reach, Math.abs(corner.x), Math.abs(corner.y));
           front = Math.max(front, corner.z);
         }
-    const radius = reach * 1.04;
+    // Margin leaves room for the floating panels. A narrow canvas is fit by its width.
+    const radius = reach * 1.22;
     const fov = THREE.MathUtils.degToRad(this.camera.fov);
-    const dist = (radius / Math.tan(fov / 2) + front) / this.zoom;
+    const fit = Math.tan(fov / 2) * Math.min(1, this.camera.aspect);
+    const dist = (radius / fit + front) / this.zoom;
     const depth = half.length();
     this.camera.position.set(0, 0, dist);
     this.camera.near = Math.max(0.1, dist - depth * 2);
     this.camera.far = dist + depth * 2;
     this.camera.updateProjectionMatrix();
     this.root.quaternion.copy(this.orient);
-    this.aimShadows();
-    this.renderer.render(this.scene, this.camera);
     this.root.updateMatrixWorld();
     // The plate edges, turned with the board. Anything outside them is cut away.
     const edge = [
@@ -1362,6 +1362,8 @@ export class BoardScene {
         ?.set(new THREE.Vector3(nx, ny, 0), c)
         .applyMatrix4(this.root.matrixWorld);
     });
+    this.aimShadows();
+    this.renderer.render(this.scene, this.camera);
   }
 
   resize(): void {

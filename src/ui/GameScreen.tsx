@@ -13,8 +13,8 @@ import {
   arrowsLeft,
   hintFor,
   restart,
+  livesFor,
   startSession,
-  STARTING_LIVES,
   tap,
   type Session,
 } from '../game/session';
@@ -109,7 +109,9 @@ export function GameScreen({
     () => buildLevel(difficulty, layers, level),
     [difficulty, layers, level],
   );
-  const [session, setSession] = useState<Session>(() => startSession(board));
+  const [session, setSession] = useState<Session>(() =>
+    startSession(board, livesFor(difficulty, layers)),
+  );
   const [leaving, setLeaving] = useState<ReadonlyMap<number, Arrow>>(new Map());
   const [flashId, setFlashId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
@@ -207,52 +209,90 @@ export function GameScreen({
     setSession(fresh);
   };
 
+  const [layersOpen, setLayersOpen] = useState(false);
   const left = arrowsLeft(session).length;
   const lastLevel = level >= LEVELS_PER_TRACK;
 
   return (
-    <main className="mx-auto flex h-dvh max-w-xl flex-col lg:max-w-none lg:flex-row">
-      <header className="flex items-center justify-between gap-2 px-4 pt-4 lg:w-60 lg:shrink-0 lg:flex-col lg:items-stretch lg:justify-start lg:gap-5 lg:border-r lg:border-slate-800 lg:p-6">
-        <button
-          type="button"
-          onClick={() => setPaused(true)}
-          aria-label="Pause"
-          className="grid size-10 shrink-0 place-items-center rounded-full bg-slate-800 font-bold lg:self-start"
-        >
-          II
-        </button>
-        <div className="text-center leading-tight lg:text-left">
-          <h1 className="font-bold text-strong">
-            {spec?.name}{' '}
-            <span className={`rounded-full bg-night px-1.5 ${accent.text}`}>
-              {layers}L
-            </span>
-          </h1>
-          <p className="text-xs text-slate-400">
-            Level {level} · {board.width}×{board.height}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-3">
-          <span
-            aria-label={`${session.lives} lives left`}
-            className="text-lg tracking-tight lg:text-3xl"
-          >
-            {'❤️'.repeat(session.lives)}
-            {'🤍'.repeat(STARTING_LIVES - session.lives)}
-          </span>
+    <main className="relative h-dvh overflow-hidden">
+      <div className="absolute inset-0">
+        {gl ? (
+          <Board3D
+            key={`${difficulty}:${layers}:${level}:${lowPower}`}
+            level={board}
+            alive={session.alive}
+            oneColor={oneColor}
+            flashId={flashId}
+            hintId={hintId}
+            leaving={leaving}
+            lowPower={lowPower}
+            dark={dark}
+            slideRate={slideRate}
+            layerView={layerView}
+            rippleFrom={rippleFrom}
+            resetCount={resetCount}
+            onTap={onTap}
+            onViewChange={setViewDefault}
+          />
+        ) : (
+          <FlatBoard
+            level={board}
+            alive={session.alive}
+            oneColor={oneColor}
+            flashId={flashId}
+            hintId={hintId}
+            leaving={leaving}
+            onTap={onTap}
+          />
+        )}
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 p-3 *:pointer-events-auto sm:p-5">
+        <div className="absolute top-3 left-3 flex items-center gap-2 sm:top-5 sm:left-5">
           <button
             type="button"
-            onClick={onHint}
-            disabled={hints <= 0}
-            className="flex h-10 items-center justify-center gap-1 rounded-full bg-slate-800 px-3 text-sm font-semibold disabled:opacity-40 lg:h-12"
+            onClick={() => setPaused(true)}
+            aria-label="Pause"
+            className="grid size-11 place-items-center rounded-full font-bold hud-card"
           >
-            💡 {hints}
+            II
           </button>
+          <div className="rounded-2xl px-3 py-1.5 leading-tight hud-card">
+            <h1 className="font-bold">
+              {spec?.name}{' '}
+              <span className={`rounded-full bg-night px-1.5 ${accent.text}`}>
+                {layers}L
+              </span>
+            </h1>
+            <p className="text-xs opacity-80">
+              Level {level} · {board.width}×{board.height}
+            </p>
+          </div>
         </div>
-      </header>
 
-      <div className="@container-size flex min-h-0 flex-1 items-center justify-center p-3">
-        <div className="relative size-[min(100cqw,100cqh)]">
+        <span
+          aria-label={`${session.lives} lives left`}
+          className="absolute top-18 left-3 rounded-full px-3 py-1.5 text-lg tracking-tight hud-card sm:top-5 sm:left-1/2 sm:-translate-x-1/2 sm:text-2xl"
+        >
+          {'❤️'.repeat(session.lives)}
+          {'🤍'.repeat(session.maxLives - session.lives)}
+        </span>
+
+        <div className="absolute top-3 right-3 flex flex-col items-end gap-2 sm:top-5 sm:right-5">
+          <div className="w-36 rounded-2xl p-2.5 text-sm hud-card sm:w-44">
+            <div className="flex items-end justify-between">
+              <span className="text-xs opacity-80">Arrows left</span>
+              <b className="text-2xl leading-none sm:text-3xl">{left}</b>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-500/40">
+              <div
+                className={`h-full rounded-full ${accent.bg}`}
+                style={{
+                  width: `${((board.arrows.length - left) / board.arrows.length) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
           {gl && (
             <button
               type="button"
@@ -260,125 +300,101 @@ export function GameScreen({
               disabled={viewDefault}
               aria-label="Reset view"
               title="Reset view"
-              className="absolute top-2 right-2 z-10 grid size-11 place-items-center rounded-full border border-teal-200/60 bg-linear-to-b from-teal-200 to-teal-500 text-xl font-bold text-slate-900 shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_5px_0_var(--color-teal-700),0_8px_12px_rgb(0_0_0/0.5)] enabled:hover:brightness-110 enabled:active:translate-y-1 enabled:active:shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_1px_0_var(--color-teal-700),0_2px_4px_rgb(0_0_0/0.5)] disabled:translate-y-0.5 disabled:cursor-default disabled:border-slate-600 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-[inset_0_2px_0_rgb(255_255_255/0.15),0_2px_0_var(--color-slate-800)]"
+              className="grid size-11 place-items-center rounded-full border border-teal-200/60 bg-linear-to-b from-teal-200 to-teal-500 text-xl font-bold text-slate-900 shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_5px_0_var(--color-teal-700),0_8px_12px_rgb(0_0_0/0.5)] enabled:hover:brightness-110 enabled:active:translate-y-1 enabled:active:shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_1px_0_var(--color-teal-700),0_2px_4px_rgb(0_0_0/0.5)] disabled:translate-y-0.5 disabled:cursor-default disabled:border-slate-600 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-[inset_0_2px_0_rgb(255_255_255/0.15),0_2px_0_var(--color-slate-800)]"
             >
               ⌖
             </button>
           )}
-          {gl ? (
-            <Board3D
-              key={`${difficulty}:${layers}:${level}:${lowPower}`}
-              level={board}
-              alive={session.alive}
-              oneColor={oneColor}
-              flashId={flashId}
-              hintId={hintId}
-              leaving={leaving}
-              lowPower={lowPower}
-              dark={dark}
-              slideRate={slideRate}
-              layerView={layerView}
-              rippleFrom={rippleFrom}
-              resetCount={resetCount}
-              onTap={onTap}
-              onViewChange={setViewDefault}
-            />
-          ) : (
-            <FlatBoard
-              level={board}
-              alive={session.alive}
-              oneColor={oneColor}
-              flashId={flashId}
-              hintId={hintId}
-              leaving={leaving}
-              onTap={onTap}
-            />
-          )}
         </div>
-      </div>
 
-      <aside className="flex flex-col gap-2 px-4 pb-4 lg:w-68 lg:shrink-0 lg:border-l lg:border-slate-800 lg:p-6">
-        <div className="rounded-xl bg-slate-900 p-3 text-sm">
-          <div className="flex items-end justify-between">
-            <span className="text-slate-400">Arrows left</span>
-            <b className="text-3xl text-strong">{left}</b>
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
-            <div
-              className={`h-full rounded-full ${accent.bg}`}
-              style={{
-                width: `${((board.arrows.length - left) / board.arrows.length) * 100}%`,
-              }}
-            />
-          </div>
-        </div>
-        {board.layers > 1 && (
-          <div className="rounded-xl bg-slate-900 p-3 text-xs text-slate-400">
-            <p className="mb-2 font-semibold text-slate-300">
-              Layers {board.layers}
-            </p>
-            <label className="flex items-center gap-2">
-              Layer gap
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={gap}
-                onChange={(e) => setGap(Number(e.target.value))}
-                className="flex-1"
-              />
-            </label>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1">
-                Hide front layers
-                <button
-                  type="button"
-                  aria-label="Hide fewer layers"
-                  onClick={() => setHideFront((n) => Math.max(0, n - 1))}
-                  className="size-6 rounded-sm bg-slate-800"
-                >
-                  -
-                </button>
-                <b>{hideFront}</b>
-                <button
-                  type="button"
-                  aria-label="Hide more layers"
-                  onClick={() =>
-                    setHideFront((n) => Math.min(board.layers - 1, n + 1))
-                  }
-                  className="size-6 rounded-sm bg-slate-800"
-                >
-                  +
-                </button>
-              </span>
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={xray}
-                  onChange={(e) => setXray(e.target.checked)}
-                />
-                X-ray
-              </label>
-            </div>
-            <p className="mt-2 text-slate-400">
-              Drag to tilt. Pinch or scroll to zoom.
-            </p>
-          </div>
-        )}
-        <p className="hidden rounded-xl bg-slate-900 p-3 text-xs text-slate-400 lg:block">
-          <b className="text-slate-200">Tip</b>
-          <br />
-          Hold an arrow to preview its path without risking a heart.
-        </p>
         <button
           type="button"
-          onClick={onRestart}
-          className="self-center rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 lg:mt-auto lg:self-stretch"
+          onClick={onHint}
+          disabled={hints <= 0}
+          className="absolute bottom-3 left-3 flex h-12 items-center justify-center gap-2 rounded-full px-4 font-semibold hud-card disabled:opacity-40 sm:bottom-5 sm:left-5"
         >
-          Restart level
+          💡 {hints}
         </button>
-      </aside>
+
+        <p className="absolute bottom-3 left-1/2 hidden w-[min(22rem,calc(100%-14rem))] -translate-x-1/2 rounded-2xl px-3 py-2 text-center text-xs hud-card sm:bottom-5 sm:text-sm sm:[@media(min-height:720px)]:block">
+          <b>Tip</b> · Hold an arrow to preview its path without risking a
+          heart.
+        </p>
+
+        <div className="absolute right-3 bottom-3 flex flex-col items-end gap-2 sm:right-5 sm:bottom-5">
+          {board.layers > 1 && layersOpen && (
+            <div className="w-64 rounded-2xl p-3 text-xs hud-card">
+              <p className="mb-2 font-semibold">Layers {board.layers}</p>
+              <label className="flex items-center gap-2">
+                Layer gap
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={gap}
+                  onChange={(e) => setGap(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </label>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1">
+                  Hide front
+                  <button
+                    type="button"
+                    aria-label="Hide fewer layers"
+                    onClick={() => setHideFront((n) => Math.max(0, n - 1))}
+                    className="size-6 rounded-sm bg-slate-500/30"
+                  >
+                    -
+                  </button>
+                  <b>{hideFront}</b>
+                  <button
+                    type="button"
+                    aria-label="Hide more layers"
+                    onClick={() =>
+                      setHideFront((n) => Math.min(board.layers - 1, n + 1))
+                    }
+                    className="size-6 rounded-sm bg-slate-500/30"
+                  >
+                    +
+                  </button>
+                </span>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={xray}
+                    onChange={(e) => setXray(e.target.checked)}
+                  />
+                  X-ray
+                </label>
+              </div>
+              <p className="mt-2 opacity-80">
+                Drag to tilt. Pinch or scroll to zoom.
+              </p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            {board.layers > 1 && (
+              <button
+                type="button"
+                aria-expanded={layersOpen}
+                onClick={() => setLayersOpen((o) => !o)}
+                className="h-12 rounded-full px-4 text-sm font-semibold hud-card"
+              >
+                ▤ Layers
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRestart}
+              className="h-12 rounded-full px-4 text-sm font-semibold hud-card"
+            >
+              ↻ Restart
+            </button>
+          </div>
+        </div>
+      </div>
 
       {showCoach && session.status === 'playing' && (
         <CoachMark onDone={onCoachDone} />

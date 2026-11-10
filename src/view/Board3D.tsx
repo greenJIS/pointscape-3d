@@ -118,7 +118,7 @@ export function Board3D({
       ref={canvasRef}
       role="img"
       aria-label="Game board"
-      className="size-full touch-none rounded-2xl bg-slate-800"
+      className="size-full touch-none bg-slate-800"
     />
   );
 }
