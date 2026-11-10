@@ -108,6 +108,24 @@
   color: #0f172a;
 }
 
+/* Theme change: the new look spreads out as a circle from the toggle. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  clip-path: circle(0 at var(--theme-x, 50%) var(--theme-y, 50%));
+  animation: theme-reveal 0.65s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes theme-reveal {
+  to {
+    clip-path: circle(150vmax at var(--theme-x, 50%) var(--theme-y, 50%));
+  }
+}
+
 @keyframes logo-sway {
   0%,
   100% {
@@ -120,6 +138,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .logo-3d {
+    animation: none;
+  }
+
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
     animation: none;
   }
 }
