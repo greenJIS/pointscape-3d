@@ -1,3 +1,4 @@
+import { useDialog } from './useDialog';
 import type { ReactNode } from 'react';
 import { BackIcon } from './icons';
 
@@ -32,8 +33,19 @@ export function Page({
   bodyClass = 'flex flex-col gap-4',
   width = 'max-w-4xl',
 }: Props) {
+  // Settings and How to play sit over another screen, so they behave as dialogs.
+  const ref = useDialog(overlay ? onBack : undefined);
   return (
     <div
+      ref={overlay ? ref : undefined}
+      {...(overlay
+        ? {
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-label': title,
+            tabIndex: -1,
+          }
+        : {})}
       className={`flex h-dvh flex-col bg-slate-950 bg-[radial-gradient(circle,var(--color-slate-700)_1.6px,transparent_1.8px)] bg-size-[44px_44px] ${overlay ? 'fixed inset-0 z-20' : ''}`}
     >
       <header

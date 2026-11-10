@@ -206,7 +206,7 @@ export function SettingsScreen({
                 settings.colorMode === 'multi' ? (
                   <span
                     key={c}
-                    className="size-9 rounded-full"
+                    className="size-11 rounded-full"
                     style={{ background: c }}
                   />
                 ) : (
@@ -216,7 +216,7 @@ export function SettingsScreen({
                     aria-label={`Use colour ${c}`}
                     aria-pressed={settings.oneColor === c}
                     onClick={() => onSettings({ ...settings, oneColor: c })}
-                    className={`size-9 rounded-full border-2 transition-transform ${settings.oneColor === c ? 'scale-110 border-strong' : 'border-transparent'}`}
+                    className={`size-11 rounded-full border-2 transition-transform ${settings.oneColor === c ? 'scale-110 border-strong' : 'border-transparent'}`}
                     style={{ background: c }}
                   />
                 ),
