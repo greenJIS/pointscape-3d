@@ -31,14 +31,14 @@ export function HomeScreen({
   const total = TRACK_COUNT * LEVELS_PER_TRACK;
   return (
     <Stage dark={dark} lowPower={lowPower}>
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-full py-1.5 pr-4 pl-1.5 hud-card sm:top-6 sm:left-6">
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-full py-1 pr-4 pl-1 hud-card sm:top-6 sm:left-6">
         <span
           aria-hidden="true"
-          className="grid size-9 place-items-center rounded-full bg-night font-bold text-link"
+          className="grid size-11 place-items-center rounded-full bg-night font-bold text-link"
         >
           {name.slice(0, 1).toUpperCase()}
         </span>
-        <span className="font-semibold">{name}</span>
+        <span className="font-semibold">Hi, {name}</span>
       </div>
       <div className="absolute top-4 right-4 z-10 flex gap-2 sm:top-6 sm:right-6">
         <button

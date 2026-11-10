@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { headOf } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { arrowColors, BLOCKED } from './palette';
+import { ANIM } from './path';
 
 interface Props {
   readonly level: Level;
@@ -113,7 +114,7 @@ export function FlatBoard({
                 ? `translate(${out.dir.x * level.width}px, ${out.dir.y * level.height}px)`
                 : undefined,
               transition: out
-                ? 'transform 320ms ease-in, opacity 320ms'
+                ? `transform ${ANIM.exitHold}s ease-in, opacity ${ANIM.exitHold}s`
                 : undefined,
               opacity: out ? 0 : 1,
             }}

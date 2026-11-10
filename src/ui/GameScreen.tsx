@@ -5,8 +5,13 @@ import {
   trackName,
   UNLOCK_AFTER,
 } from '../core/difficulty';
+import { headOf } from '../core/board';
 import type { Arrow, Level } from '../core/types';
-import type { ClearResult, Track } from '../game/progress';
+import {
+  HINT_GIFT_EVERY,
+  type ClearResult,
+  type Track,
+} from '../game/progress';
 import {
   arrowsLeft,
   hintFor,
@@ -22,7 +27,11 @@ import {
   type ColorMode,
 } from '../game/settings';
 import { Board3D } from '../view/Board3D';
-import { webglAvailable, type LayerView } from '../view/BoardScene';
+import {
+  webglAvailable,
+  type LayerView,
+  type TideOrigin,
+} from '../view/BoardScene';
 import { FlatBoard } from '../view/FlatBoard';
 import { ANIM, arrowPath, slideDistance } from '../view/path';
 import { playSound } from '../view/sound';
@@ -64,10 +73,10 @@ interface Props {
   readonly onSettings: () => void;
   readonly onHelp: () => void;
   readonly onHome: () => void;
+  /** Shows a short message at the top of the screen. */
+  readonly onToast: (message: string) => void;
+  readonly name: string;
 }
-
-const SLIDE_MS = 320;
-const FLASH_MS = 400;
 
 /** Seconds the last arrow takes to slide off the board. */
 function slideSeconds(
@@ -107,6 +116,8 @@ export function GameScreen({
   onSettings,
   onHelp,
   onHome,
+  onToast,
+  name,
 }: Props) {
   const [session, setSession] = useState<Session>(() =>
     startSession(board, livesFor(difficulty, layers)),
@@ -115,6 +126,7 @@ export function GameScreen({
   const [flashId, setFlashId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
   const [tide, setTide] = useState(false);
+  const [tideOrigin, setTideOrigin] = useState<TideOrigin>();
   const [winShown, setWinShown] = useState(false);
   const [loseShown, setLoseShown] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -124,7 +136,8 @@ export function GameScreen({
   const [gap, setGap] = useState(0.3);
   const [hideFront, setHideFront] = useState(0);
   const [xray, setXray] = useState(false);
-  const [gl] = useState(webglAvailable);
+  // Falls back to the flat board when WebGL is missing, fails to start, or is lost.
+  const [gl, setGl] = useState(webglAvailable);
   // The flat fallback draws at once. The 3D board reports when its first frame is up.
   const [boardReady, setBoardReady] = useState(!gl);
   const reported = useRef(false);
@@ -165,12 +178,16 @@ export function GameScreen({
                 next.delete(arrowId);
                 return next;
               }),
-            SLIDE_MS,
+            ANIM.exitHold * 1000,
           );
         }
         if (r.session.status === 'won' && !reported.current) {
           reported.current = true;
-          if (arrow) setTide(true);
+          if (arrow) {
+            const head = headOf(arrow);
+            setTideOrigin({ x: head.x, y: head.y });
+            setTide(true);
+          }
           window.setTimeout(
             () => {
               setWinShown(true);
@@ -182,14 +199,18 @@ export function GameScreen({
         }
       } else {
         setFlashId(arrowId);
-        window.setTimeout(() => setFlashId(null), FLASH_MS);
+        window.setTimeout(() => setFlashId(null), ANIM.flashHold * 1000);
       }
     },
     [board, onWin, sound, slideRate],
   );
 
   const onHint = () => {
-    if (hints <= 0 || live.current.status !== 'playing') return;
+    if (live.current.status !== 'playing') return;
+    if (hints <= 0) {
+      onToast(`No hints left. Clear ${HINT_GIFT_EVERY} levels for one more.`);
+      return;
+    }
     const id = hintFor(live.current);
     if (id === undefined) return;
     onHintUsed();
@@ -200,6 +221,7 @@ export function GameScreen({
     reported.current = false;
     setResult(null);
     setTide(false);
+    setTideOrigin(undefined);
     setWinShown(false);
     setLoseShown(false);
     setPaused(false);
@@ -238,9 +260,14 @@ export function GameScreen({
             slideRate={slideRate}
             layerView={layerView}
             tide={tide}
+            tideOrigin={tideOrigin}
             resetCount={resetCount}
             onTap={onTap}
             onReady={() => setBoardReady(true)}
+            onFail={() => {
+              setGl(false);
+              setBoardReady(true);
+            }}
             onViewChange={setViewDefault}
           />
         ) : (
@@ -256,6 +283,13 @@ export function GameScreen({
         )}
       </div>
 
+      <p role="status" className="sr-only">
+        {session.status === 'won'
+          ? 'Level cleared'
+          : session.status === 'lost'
+            ? 'Out of hearts'
+            : `${left} arrows left, ${session.lives} hearts`}
+      </p>
       <div className="pointer-events-none absolute inset-0 p-3 *:pointer-events-auto sm:p-5">
         <div className="absolute top-3 left-3 flex items-center gap-2 sm:top-5 sm:left-5">
           <button
@@ -319,8 +353,8 @@ export function GameScreen({
         <button
           type="button"
           onClick={onHint}
-          disabled={hints <= 0}
-          className="absolute bottom-3 left-3 flex h-12 items-center justify-center gap-2 rounded-full px-4 font-semibold hud-card disabled:opacity-40 sm:bottom-5 sm:left-5"
+          aria-disabled={hints <= 0}
+          className={`absolute bottom-3 left-3 flex h-12 items-center justify-center gap-2 rounded-full px-4 font-semibold hud-card sm:bottom-5 sm:left-5 ${hints <= 0 ? 'opacity-40' : ''}`}
         >
           💡 {hints}
         </button>
@@ -410,7 +444,7 @@ export function GameScreen({
       )}
 
       {paused && session.status === 'playing' && (
-        <Modal>
+        <Modal onClose={() => setPaused(false)}>
           <h2 className="text-2xl font-bold text-strong">Paused</h2>
           <div className="mt-5 flex flex-col gap-2">
             <ModalButton
@@ -446,7 +480,7 @@ export function GameScreen({
           >
             ✓
           </div>
-          <h2 className="text-2xl font-bold text-strong">Cleared!</h2>
+          <h2 className="text-2xl font-bold text-strong">Cleared, {name}!</h2>
           <p className="mt-1 text-sm text-slate-400">
             {trackName(difficulty, layers)} · {level}
           </p>

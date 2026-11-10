@@ -49,7 +49,7 @@ interface Props {
  * solving order with the game's own slide, then they come back and it repeats.
  */
 export function HomeBackdrop({ dark, lowPower, onReady }: Props) {
-  const [gl] = useState(webglAvailable);
+  const [gl, setGl] = useState(webglAvailable);
   const level = useMemo(() => backdropLevel(), []);
   const order = useMemo(() => solve(level) ?? [], [level]);
   const [gone, setGone] = useState(0);
@@ -112,6 +112,7 @@ export function HomeBackdrop({ dark, lowPower, onReady }: Props) {
           setShown(true);
           onReady?.();
         }}
+        onFail={() => setGl(false)}
         onViewChange={() => undefined}
       />
     </div>

@@ -35,6 +35,8 @@ export interface SceneOptions {
   readonly onTap: (arrowId: number) => void;
   /** Called once, after the first frame has been drawn. */
   readonly onReady?: () => void;
+  /** Called when the browser takes the GPU context away, for example after a backgrounded tab. */
+  readonly onLost?: () => void;
   /** Called when the view moves away from, or back to, its opening state. */
   readonly onViewChange?: (isDefault: boolean) => void;
 }
@@ -75,7 +77,7 @@ interface ArrowView {
 
 /** Pick meshes sit on their own layer: the camera never draws them, only the raycaster sees them. */
 const PICK_LAYER = 1;
-const TUBE_RADIUS = 0.14;
+const TUBE_RADIUS = 0.15;
 const PICK_RADIUS = 0.2;
 const CORNER = 0.34;
 /** Cells of delay before the tide reaches a dot: it sweeps left to right on a gentle swell. */
@@ -83,11 +85,14 @@ function tideReach(x: number, y: number): number {
   return x + 2 + Math.sin(y * 0.55) * 1.5;
 }
 
+/** A cell, where a tide starts. */
+export interface TideOrigin {
+  readonly x: number;
+  readonly y: number;
+}
+
 /** Direction toward the key light that casts the drop shadows, in the scene. */
 const KEY_DIRECTION = new THREE.Vector3(-4, 7, 9).normalize();
-/** How far a shadow lands from its arrow, in cells, and how far behind it. */
-const SHADOW_SHIFT = 0.14;
-const SHADOW_DEPTH = 0.12;
 const WHITE = new THREE.Color('#ffffff');
 
 /**
@@ -347,6 +352,7 @@ export class BoardScene {
   private lastDots = performance.now() / 1000;
   /** Set when the last arrow is tapped. The win ripple starts once it has slid out. */
   private pendingWin = false;
+  private tideOrigin: TideOrigin | null = null;
   private win: { readonly t0: number } | null = null;
   private hintStart = -10;
   private readonly reduceMotion =
@@ -381,6 +387,7 @@ export class BoardScene {
       Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 2),
     );
     this.renderer.localClippingEnabled = true;
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
     this.shadowMat.clippingPlanes = this.clipPlanes;
     this.look = readLook();
     this.scene.background = opts.backdrop
@@ -448,9 +455,9 @@ export class BoardScene {
     );
     const lift = Math.max(Math.abs(light.z), 0.45);
     const next = new THREE.Vector3(
-      (-light.x / lift) * SHADOW_SHIFT,
-      (-light.y / lift) * SHADOW_SHIFT,
-      light.z >= 0 ? -SHADOW_DEPTH : SHADOW_DEPTH,
+      (-light.x / lift) * ANIM.shadowShift,
+      (-light.y / lift) * ANIM.shadowShift,
+      light.z >= 0 ? -ANIM.shadowDepth : ANIM.shadowDepth,
     );
     if (next.distanceToSquared(this.shadowOffset) < 1e-8) return;
     this.shadowOffset.copy(next);
@@ -463,7 +470,7 @@ export class BoardScene {
 
   /** Back to the opening view: facing the player, centred, at the default zoom. */
   resetView(animate = false): void {
-    const tilt = this.level.layers > 1 ? 0.42 : 0;
+    const tilt = this.level.layers > 1 ? ANIM.tilt : 0;
     if (!animate || this.reduceMotion) {
       this.spin = 0;
       this.tilt = tilt;
@@ -506,7 +513,7 @@ export class BoardScene {
   private reportView(): void {
     const turn = Math.PI * 2;
     const spin = Math.abs(this.spin - Math.round(this.spin / turn) * turn);
-    const home = this.level.layers > 1 ? 0.42 : 0;
+    const home = this.level.layers > 1 ? ANIM.tilt : 0;
     const isDefault =
       spin < 0.01 &&
       Math.abs(this.tilt - home) < 0.01 &&
@@ -884,19 +891,33 @@ export class BoardScene {
   }
 
   /**
-   * Win tide over the grid dots: a wave that sweeps across the board from left to right (FR-55).
+   * Win tide over the grid dots (FR-55): a ring that spreads from the last arrow cleared, or, with no
+   * origin, a wave that sweeps across the board from left to right.
    * It waits until the last arrow has slid out, then runs layer by layer in stacked levels.
    */
-  ripple(): void {
+  ripple(origin?: TideOrigin): void {
     if (this.reduceMotion) return;
+    this.tideOrigin = origin ?? null;
     this.pendingWin = true;
     this.dirty = true;
   }
 
+  /** Cells of distance before the tide reaches a dot. */
+  private tideReach(x: number, y: number): number {
+    const o = this.tideOrigin;
+    return o ? Math.hypot(x - o.x, y - o.y) : tideReach(x, y);
+  }
+
   private maxRipple(): number {
     const { width, height, layers } = this.level;
+    const far = Math.max(
+      this.tideReach(0, 0),
+      this.tideReach(width, 0),
+      this.tideReach(0, height),
+      this.tideReach(width, height),
+    );
     return (
-      tideReach(width, height) * ANIM.rippleDelay +
+      far * ANIM.rippleDelay +
       (layers - 1) * ANIM.rippleLayerDelay +
       ANIM.rippleTime
     );
@@ -954,7 +975,7 @@ export class BoardScene {
         let scale = 1;
         color.set(this.look.dot);
         if (this.win) {
-          const reach = tideReach(x, y) * ANIM.rippleDelay;
+          const reach = this.tideReach(x, y) * ANIM.rippleDelay;
           const u =
             (now - this.win.t0 - reach - z * ANIM.rippleLayerDelay) /
             ANIM.rippleTime;
@@ -1451,8 +1472,12 @@ export class BoardScene {
       }
     }
     if (this.moved) {
-      this.spin += (e.clientX - prev.x) * 0.008;
-      this.tilt = clamp(this.tilt - (e.clientY - prev.y) * 0.008, -1.45, 1.45);
+      this.spin += (e.clientX - prev.x) * ANIM.dragTurn;
+      this.tilt = clamp(
+        this.tilt - (e.clientY - prev.y) * ANIM.dragTurn,
+        -1.45,
+        1.45,
+      );
       this.updateOrient();
       this.dirty = true;
     }
@@ -1485,7 +1510,7 @@ export class BoardScene {
 
   private setZoom(z: number): void {
     this.viewTween = null;
-    this.zoom = clamp(z, 0.6, 3);
+    this.zoom = clamp(z, ANIM.zoomMin, ANIM.zoomMax);
     this.dirty = true;
   }
 
@@ -1565,6 +1590,11 @@ export class BoardScene {
     this.dirty = true;
   }
 
+  private readonly onContextLost = (e: Event): void => {
+    e.preventDefault();
+    this.opts.onLost?.();
+  };
+
   dispose(): void {
     this.disposed = true;
     window.clearTimeout(this.holdTimer);
@@ -1580,6 +1610,7 @@ export class BoardScene {
     c.removeEventListener('pointerup', this.onUp);
     c.removeEventListener('pointercancel', this.onCancel);
     c.removeEventListener('wheel', this.onWheel);
+    c.removeEventListener('webglcontextlost', this.onContextLost);
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.InstancedMesh) {
         if (o.geometry !== this.headGeo) o.geometry.dispose();

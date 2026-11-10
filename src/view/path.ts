@@ -116,6 +116,21 @@ export const ANIM = {
   dotFade: 0.2,
   /** A moving arrow hides dots closer than this to its body. */
   dotNear: 0.42,
+  /** A cleared arrow stays in the flat board's list this long, to finish its slide. */
+  exitHold: 0.32,
+  /** The blocked flash stays on for this long. */
+  flashHold: 0.4,
+  /** Opening tilt of a stacked board, in radians, and how far a drag turns the view per pixel. */
+  tilt: 0.42,
+  dragTurn: 0.008,
+  /** Zoom limits. */
+  zoomMin: 0.6,
+  zoomMax: 3,
+  /** Drop shadow: how far it lands from its arrow, in cells, and how far behind it. */
+  shadowShift: 0.14,
+  shadowDepth: 0.12,
+  /** A blocked arrow stops this far short of the blocker's cell. */
+  bumpGap: 0.8,
 } as const;
 
 /** Distance travelled after `t` seconds of an exit slide. */
@@ -129,4 +144,4 @@ export const slideDistance = (t: number, rate = 1): number => {
  * the gap in front of the blocker, which sits `blockerCells` cells beyond the head.
  */
 export const bumpDistance = (blockerCells: number): number =>
-  blockerCells - 0.8;
+  blockerCells - ANIM.bumpGap;

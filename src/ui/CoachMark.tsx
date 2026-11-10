@@ -14,7 +14,7 @@ export function CoachMark({ onDone }: Props) {
     >
       <p className="text-sm text-slate-200">
         Tap an arrow with a clear path in front of its head. Blocked arrows cost
-        a heart.
+        a heart. Hold an arrow to preview its path first.
       </p>
       <button
         type="button"

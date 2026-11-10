@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { createRng } from './core/rng';
 import { LEVELS_PER_TRACK } from './core/difficulty';
+import { browserStore } from './game/browserStore';
 import { unlockAllEnabled } from './game/dev';
 import { cleanName, nameOrAnimal } from './game/playerName';
 import {
@@ -60,8 +61,10 @@ const GameScreen = lazy(() =>
 
 const TOAST_MS = 2200;
 
+const store = browserStore();
+
 export default function App() {
-  const [save, setSave] = useState<SaveData>(() => loadSave(localStorage));
+  const [save, setSave] = useState<SaveData>(() => loadSave(store));
   const [screen, setScreen] = useState<Screen>(() =>
     save.name ? { name: 'home' } : { name: 'name' },
   );
@@ -75,7 +78,7 @@ export default function App() {
   const saveRef = useRef(save);
   useEffect(() => {
     saveRef.current = save;
-    writeSave(localStorage, save);
+    writeSave(store, save);
   }, [save]);
 
   useEffect(() => {
@@ -259,6 +262,8 @@ export default function App() {
               onSettings={() => setSettingsOpen(true)}
               onHelp={() => setHelpOpen(true)}
               onHome={() => setScreen({ name: 'home' })}
+              onToast={setToast}
+              name={save.name}
             />
           )}
         </LevelGate>
@@ -284,6 +289,7 @@ export default function App() {
           onReset={() => {
             setSave((s) => resetProgress(s));
             setScreen({ name: 'home' });
+            setToast('Progress reset');
           }}
           onBack={() => setSettingsOpen(false)}
         />

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Arrow, Level } from '../core/types';
-import { BoardScene, type LayerView } from './BoardScene';
+import { BoardScene, type LayerView, type TideOrigin } from './BoardScene';
 
 interface Props {
   readonly level: Level;
@@ -16,13 +16,16 @@ interface Props {
   /** Exit slide speed, 1 being the demo's. */
   readonly slideRate: number;
   readonly layerView: LayerView;
-  /** Set when the level is won: the cell the clear ripple starts from. */
+  /** Set when the level is won. The ripple starts at `tideOrigin`, or sweeps from the left without one. */
   readonly tide: boolean;
+  readonly tideOrigin?: TideOrigin;
   /** Each change puts the board back to its opening view. */
   readonly resetCount: number;
   readonly onTap: (arrowId: number) => void;
   /** Called when the board has drawn its first frame. */
   readonly onReady?: () => void;
+  /** Called when the scene cannot start or loses its GPU context. The caller shows a fallback. */
+  readonly onFail?: () => void;
   /** True while the view sits at its opening position. */
   readonly onViewChange: (isDefault: boolean) => void;
 }
@@ -44,9 +47,11 @@ export function Board3D({
   slideRate,
   layerView,
   tide,
+  tideOrigin,
   resetCount,
   onTap,
   onReady,
+  onFail,
   onViewChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -54,6 +59,7 @@ export function Board3D({
   const tapRef = useRef(onTap);
   const viewRef = useRef(onViewChange);
   const readyRef = useRef(onReady);
+  const failRef = useRef(onFail);
   const seenLeaving = useRef(new Set<number>());
 
   useEffect(() => {
@@ -64,18 +70,26 @@ export function Board3D({
     tapRef.current = onTap;
     viewRef.current = onViewChange;
     readyRef.current = onReady;
-  }, [onTap, onViewChange, onReady]);
+    failRef.current = onFail;
+  }, [onTap, onViewChange, onReady, onFail]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const scene = new BoardScene(canvas, level, {
-      lowPower,
-      backdrop,
-      onTap: (id) => tapRef.current(id),
-      onReady: () => readyRef.current?.(),
-      onViewChange: (d) => viewRef.current(d),
-    });
+    let scene: BoardScene;
+    try {
+      scene = new BoardScene(canvas, level, {
+        lowPower,
+        backdrop,
+        onTap: (id) => tapRef.current(id),
+        onReady: () => readyRef.current?.(),
+        onLost: () => failRef.current?.(),
+        onViewChange: (d) => viewRef.current(d),
+      });
+    } catch {
+      failRef.current?.();
+      return;
+    }
     sceneRef.current = scene;
     viewRef.current(true);
     const ro = new ResizeObserver(() => scene.resize());
@@ -100,7 +114,9 @@ export function Board3D({
   }, [resetCount]);
 
   useEffect(() => {
-    if (tide) sceneRef.current?.ripple();
+    if (tide) sceneRef.current?.ripple(tideOrigin);
+    // Only the moment of winning matters, not a later change of origin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tide]);
 
   useEffect(() => {
