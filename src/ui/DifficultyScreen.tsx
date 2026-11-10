@@ -36,29 +36,36 @@ export function DifficultyScreen({
       title="Choose a level set"
       onBack={onBack}
       top={
-        <p className="text-sm text-slate-400">
+        <p className="max-w-prose text-base text-slate-300">
           Difficulty sets the grid size. Layers set how many boards are stacked.
         </p>
       }
     >
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-4">
         {DIFFICULTIES.map((d, i) => {
           const accent = accentFor(i);
           const side = levelParams(i, 1, 1).width;
           return (
-            <li key={d.id} className="rounded-3xl p-3 hud-card">
-              <h2
-                className={`mb-2 w-fit rounded-full bg-night px-3 py-0.5 font-bold ${accent.text}`}
-              >
-                {d.name}{' '}
-                <span className="text-sm font-normal opacity-80">
-                  {side}×{side}
+            <li key={d.id} className="rounded-3xl p-4 hud-card">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
+                <h2
+                  className={`flex w-fit items-center gap-2 rounded-full bg-night py-1 pr-3.5 pl-2.5 text-xl font-extrabold ${accent.text}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`size-2.5 rounded-full ${accent.bg}`}
+                  />
+                  {d.name}
+                </h2>
+                <span className="text-[15px] font-semibold text-slate-300 tabular-nums">
+                  {side}×{side} grid
                 </span>
-              </h2>
-              <div className="grid grid-cols-5 gap-2">
+              </div>
+              <div className="grid grid-cols-5 gap-2.5">
                 {LAYER_COUNTS.map((layers) => {
                   const open = isTrackUnlocked(i, layers, progress, unlockAll);
                   const need = prerequisite(i, layers);
+                  const cleared = clearedCount(progress, i, layers);
                   return (
                     <button
                       key={layers}
@@ -73,18 +80,41 @@ export function DifficultyScreen({
                                 : 'Locked',
                             )
                       }
-                      className={`flex flex-col items-center rounded-xl border border-slate-700 bg-slate-800 py-2 active:scale-95 ${open ? '' : 'opacity-40'}`}
+                      className={`flex flex-col items-center gap-0.5 rounded-2xl border-2 px-1 pt-2.5 pb-2 transition-transform active:scale-95 ${open ? `border-transparent text-ink ${accent.bg}` : 'border-dashed border-slate-500 bg-slate-800 text-slate-300'}`}
                     >
-                      <span
-                        className={`grid size-9 place-items-center rounded-lg font-black text-ink ${accent.bg}`}
-                      >
-                        {open ? `${layers}L` : '🔒'}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {open
-                          ? `${clearedCount(progress, i, layers)}/${LEVELS_PER_TRACK}`
-                          : ' '}
-                      </span>
+                      {open ? (
+                        <>
+                          <span className="text-3xl/tight font-black">
+                            {layers}
+                            <small className="ml-px text-base font-extrabold">
+                              L
+                            </small>
+                          </span>
+                          <span className="text-[13px] font-bold tabular-nums">
+                            {cleared}/{LEVELS_PER_TRACK}
+                          </span>
+                          <span className="mt-0.5 h-1.5 w-7/10 overflow-hidden rounded-full bg-ink/25">
+                            <span
+                              className="block h-full rounded-full bg-ink"
+                              style={{
+                                width: `${(cleared / LEVELS_PER_TRACK) * 100}%`,
+                              }}
+                            />
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="text-2xl/snug grayscale"
+                          >
+                            🔒
+                          </span>
+                          <span className="text-[13px] font-semibold">
+                            {layers} {layers === 1 ? 'layer' : 'layers'}
+                          </span>
+                        </>
+                      )}
                     </button>
                   );
                 })}
