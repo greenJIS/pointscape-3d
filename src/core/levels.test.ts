@@ -148,3 +148,19 @@ describe('complexity curve', () => {
     }
   }, 120000);
 });
+
+// All 2,500 levels, one after another. Slow (several minutes), so it runs on request:
+// `FULL_LEVELS=1 npm test -- levels`.
+describe.skipIf(!process.env.FULL_LEVELS)('every level', () => {
+  it.each(tracks)(
+    'every level of difficulty %i, %iL is valid and solvable',
+    (d, layers) => {
+      for (let l = 1; l <= LEVELS_PER_TRACK; l++) {
+        const level = buildLevel(d, layers, l);
+        expect(validateLevel(level), `${d}:${layers}:${l}`).toEqual([]);
+        expect(isSolvable(level), `${d}:${layers}:${l}`).toBe(true);
+      }
+    },
+    600000,
+  );
+});
