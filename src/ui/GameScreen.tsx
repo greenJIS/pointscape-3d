@@ -30,6 +30,7 @@ import { ANIM, arrowPath, slideDistance } from '../view/path';
 import { playSound } from '../view/sound';
 import { accentFor } from './accents';
 import { CoachMark } from './CoachMark';
+import { PauseIcon } from './icons';
 import { Modal, ModalButton } from './Modal';
 
 interface Props {
@@ -255,7 +256,7 @@ export function GameScreen({
             aria-label="Pause"
             className="grid size-11 place-items-center rounded-full font-bold hud-card"
           >
-            II
+            <PauseIcon />
           </button>
           <div className="rounded-2xl px-3 py-1.5 leading-tight hud-card">
             <h1 className="font-bold">

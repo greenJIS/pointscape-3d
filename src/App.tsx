@@ -138,6 +138,8 @@ export default function App() {
     case 'name':
       body = (
         <NameScreen
+          dark={dark}
+          lowPower={save.settings.lowPower}
           onDone={(raw) => {
             setName(raw, true);
             setScreen({ name: 'home' });
@@ -148,6 +150,8 @@ export default function App() {
     case 'home':
       body = (
         <HomeScreen
+          dark={dark}
+          lowPower={save.settings.lowPower}
           name={save.name}
           progress={progress}
           onPlay={() =>

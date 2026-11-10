@@ -31,6 +31,8 @@ export interface SceneOptions {
   readonly lowPower: boolean;
   /** Start in the dark look. `setDark` changes it later. */
   readonly dark: boolean;
+  /** Draw as a page backdrop: see-through, no plate, and the board covers the whole canvas. */
+  readonly backdrop?: boolean;
   readonly onTap: (arrowId: number) => void;
   /** Called when the view moves away from, or back to, its opening state. */
   readonly onViewChange?: (isDefault: boolean) => void;
@@ -370,6 +372,7 @@ export class BoardScene {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: !opts.lowPower,
+      alpha: opts.backdrop === true,
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(
@@ -378,7 +381,9 @@ export class BoardScene {
     this.renderer.localClippingEnabled = true;
     this.shadowMat.clippingPlanes = this.clipPlanes;
     this.look = opts.dark ? LOOKS.dark : LOOKS.light;
-    this.scene.background = new THREE.Color(this.look.board);
+    this.scene.background = opts.backdrop
+      ? null
+      : new THREE.Color(this.look.board);
     this.scene.add(this.root);
     this.root.add(this.preview);
     this.setupLights();
@@ -535,6 +540,7 @@ export class BoardScene {
       });
       const plate = new THREE.Mesh(geo, mat);
       plate.userData.layer = z;
+      plate.visible = this.opts.backdrop !== true;
       this.layerClearT.push(0);
       this.layerGone.push(false);
       this.root.add(plate);
@@ -932,8 +938,13 @@ export class BoardScene {
       for (let i = 0; i < width * height; i++) {
         const x = i % width;
         const y = Math.floor(i / width);
-        let under = still.has(`${x},${y}`);
-        for (let k = 0; k < movers.length && !under; k++) {
+        // The page backdrop keeps every dot: only the arrows move over it.
+        let under = !this.opts.backdrop && still.has(`${x},${y}`);
+        for (
+          let k = 0;
+          k < movers.length && !under && !this.opts.backdrop;
+          k++
+        ) {
           under = nearBody(movers[k]?.shown ?? [], x, y, ANIM.dotNear);
         }
         const before = alpha[i] ?? 1;
@@ -982,7 +993,8 @@ export class BoardScene {
     const look = dark ? LOOKS.dark : LOOKS.light;
     if (look === this.look) return;
     this.look = look;
-    this.scene.background = new THREE.Color(look.board);
+    if (!this.opts.backdrop)
+      this.scene.background = new THREE.Color(look.board);
     if (this.sky) {
       this.sky.color.set(look.sky);
       this.sky.groundColor.set(look.board);
@@ -1242,6 +1254,8 @@ export class BoardScene {
    * where they stay for the ripple. Returns true while one is still moving.
    */
   private stepLayerClear(now: number): boolean {
+    // The page backdrop keeps its layer and dots, even with no arrows left.
+    if (this.opts.backdrop) return false;
     let moving = false;
     const layers = this.level.layers;
     const left = new Array<boolean>(layers).fill(false);
@@ -1342,7 +1356,14 @@ export class BoardScene {
     const radius = reach * 1.22;
     const fov = THREE.MathUtils.degToRad(this.camera.fov);
     const fit = Math.tan(fov / 2) * Math.min(1, this.camera.aspect);
-    const dist = (radius / fit + front) / this.zoom;
+    let dist = (radius / fit + front) / this.zoom;
+    if (this.opts.backdrop) {
+      // Cover the canvas: the board fills both sides and the overflow is cropped.
+      const tanY = Math.tan(fov / 2);
+      const needY = half.y / tanY;
+      const needX = half.x / (tanY * this.camera.aspect);
+      dist = Math.min(needX, needY) + front;
+    }
     const depth = half.length();
     this.camera.position.set(0, 0, dist);
     this.camera.near = Math.max(0.1, dist - depth * 2);

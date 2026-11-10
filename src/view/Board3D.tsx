@@ -11,6 +11,8 @@ interface Props {
   readonly leaving: ReadonlyMap<number, Arrow>;
   readonly lowPower: boolean;
   readonly dark: boolean;
+  /** Page backdrop mode, see `SceneOptions.backdrop`. */
+  readonly backdrop?: boolean;
   /** Exit slide speed, 1 being the demo's. */
   readonly slideRate: number;
   readonly layerView: LayerView;
@@ -36,6 +38,7 @@ export function Board3D({
   leaving,
   lowPower,
   dark,
+  backdrop = false,
   slideRate,
   layerView,
   rippleFrom,
@@ -66,6 +69,7 @@ export function Board3D({
     const scene = new BoardScene(canvas, level, {
       lowPower,
       dark: darkRef.current,
+      backdrop,
       onTap: (id) => tapRef.current(id),
       onViewChange: (d) => viewRef.current(d),
     });
@@ -78,7 +82,7 @@ export function Board3D({
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [level, lowPower]);
+  }, [level, lowPower, backdrop]);
 
   useEffect(() => {
     if (sceneRef.current) sceneRef.current.slideRate = slideRate;
@@ -118,7 +122,7 @@ export function Board3D({
       ref={canvasRef}
       role="img"
       aria-label="Game board"
-      className="size-full touch-none bg-slate-800"
+      className={`size-full touch-none ${backdrop ? '' : 'bg-slate-800'}`}
     />
   );
 }
