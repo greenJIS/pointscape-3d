@@ -12,8 +12,8 @@ gitignored, so these files exist only on the owner's machine and are not on GitH
 
 - Node 24, pinned in `.nvmrc`. Package manager: npm.
 - Stack: React, TypeScript (`strict`), Vite, Tailwind CSS v4, three.js, Vitest, ESLint, Prettier.
-- Published later as static files on GitHub Pages. `vite.config.ts` already sets `base` to `/pointscape-3d/`. There is
-  no deploy workflow yet: it is added once the game is in a publishable state.
+- Published as static files on GitHub Pages by `.github/workflows/deploy.yml` on push to `main`. `vite.config.ts` sets
+  `base` to `/pointscape-3d/`. The repository's Pages source must be "GitHub Actions".
 - Local-only, gitignored: `docs/`, `.claude/`, `.husky/`, `.vscode/`. A fresh clone has no commit-msg hook until
   `.husky/commit-msg` (`npx --no -- commitlint --edit "$1"`) is recreated and `npm install` runs `husky`.
 - Shell note: the owner's shell wraps `npm` and `npx` in Safe-chain, which can time out on installs with "Failed to

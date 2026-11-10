@@ -58,9 +58,17 @@ The design documents live in `docs/` on the author's machine and are not publish
 ## Status
 
 The game is playable end to end: name screen, Home, difficulty and level pick, the 3D board with stacked layers,
-hearts, hints, win and lose, saved progress, settings, How to play and sound. All 500 levels are generated from
+hearts, hints, win and lose, saved progress, settings, How to play and sound. All 2,500 levels are generated from
 seeds and checked solvable.
 
-Still open: the animation numbers are guesses and need tuning by hand, the difficulty curve needs playtesting, and
-there is no deploy workflow yet. Publishing to GitHub Pages is planned for when the game is ready. The Vite `base` is
-already set to `/pointscape-3d/` for it.
+Still open: the animation numbers are guesses and need tuning by hand, and the difficulty curve needs playtesting.
+
+## Deploy
+
+`.github/workflows/deploy.yml` lints, tests, builds and publishes `dist/` to GitHub Pages on every push to `main`.
+In the repository settings, set Pages source to "GitHub Actions". The Vite `base` is `/pointscape-3d/`, and the
+workflow sets `VITE_SITE_URL` to the absolute site URL for the Open Graph image.
+
+## License
+
+[MIT](LICENSE)
