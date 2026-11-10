@@ -2,7 +2,24 @@ import { blockerOf, occupancy } from '../core/board';
 import { hint } from '../core/solver';
 import type { Arrow, Level } from '../core/types';
 
+/** The default number of lives, for a session that is not told how many. */
 export const STARTING_LIVES = 3;
+
+/** Lives at 1L and at 5L for each difficulty. Layers in between are spread evenly. */
+const LIVES: readonly (readonly [number, number])[] = [
+  [3, 5],
+  [4, 6],
+  [5, 7],
+  [6, 7],
+  [7, 7],
+];
+
+/** Lives a level starts with. Harder tracks give more. */
+export function livesFor(difficulty: number, layers: number): number {
+  const [low, high] = LIVES[difficulty] ?? [STARTING_LIVES, STARTING_LIVES];
+  const t = (Math.min(5, Math.max(1, layers)) - 1) / 4;
+  return Math.round(low + (high - low) * t);
+}
 
 export type Status = 'playing' | 'won' | 'lost';
 
@@ -12,6 +29,8 @@ export interface Session {
   /** Ids of arrows still on the board. */
   readonly alive: ReadonlySet<number>;
   readonly lives: number;
+  /** Lives at the start, so the screen can show the lost ones. */
+  readonly maxLives: number;
   /** Arrows that already cost a life, so a repeat tap is free (FR-6). */
   readonly penalised: ReadonlySet<number>;
   readonly status: Status;
@@ -27,10 +46,14 @@ export interface TapResult {
   readonly lifeLost: boolean;
 }
 
-export const startSession = (level: Level): Session => ({
+export const startSession = (
+  level: Level,
+  maxLives: number = STARTING_LIVES,
+): Session => ({
   level,
   alive: new Set(level.arrows.map((a) => a.id)),
-  lives: STARTING_LIVES,
+  lives: maxLives,
+  maxLives,
   penalised: new Set(),
   status: 'playing',
 });
@@ -90,4 +113,5 @@ export const hintFor = (s: Session): number | undefined =>
   s.status === 'playing' ? hint(remainingLevel(s)) : undefined;
 
 /** Same level, fresh lives and arrows. Levels are seeded, so it is the same board (FR-17). */
-export const restart = (s: Session): Session => startSession(s.level);
+export const restart = (s: Session): Session =>
+  startSession(s.level, s.maxLives);

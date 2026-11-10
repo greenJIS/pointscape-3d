@@ -4,6 +4,7 @@ import { LEFT, RIGHT, UP, v3 } from '../core/vec';
 import {
   arrowsLeft,
   hintFor,
+  livesFor,
   restart,
   startSession,
   STARTING_LIVES,
@@ -109,5 +110,24 @@ describe('hint and restart', () => {
     let s = startSession(level);
     s = tap(tap(s, 0).session, 1).session;
     expect(restart(s)).toEqual(startSession(level));
+  });
+
+  it('gives more lives to harder tracks', () => {
+    const grid = [0, 1, 2, 3, 4].map((d) =>
+      [1, 2, 3, 4, 5].map((l) => livesFor(d, l)),
+    );
+    expect(grid).toEqual([
+      [3, 4, 4, 5, 5],
+      [4, 5, 5, 6, 6],
+      [5, 6, 6, 7, 7],
+      [6, 6, 7, 7, 7],
+      [7, 7, 7, 7, 7],
+    ]);
+  });
+
+  it('keeps the track lives on restart', () => {
+    const s = startSession(level, livesFor(4, 1));
+    expect(restart(s).lives).toBe(7);
+    expect(restart(s).maxLives).toBe(7);
   });
 });
