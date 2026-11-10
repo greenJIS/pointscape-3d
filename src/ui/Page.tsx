@@ -57,7 +57,7 @@ export function Page({
         </div>
       )}
       <main
-        className={`mx-auto min-h-0 w-full flex-1 overflow-y-auto mask-[linear-gradient(to_bottom,transparent,#000_0.5rem,#000_calc(100%-1.75rem),transparent)] ${width}`}
+        className={`mx-auto min-h-0 scroll-game w-full flex-1 overflow-y-auto mask-[linear-gradient(to_bottom,transparent,#000_0.5rem,#000_calc(100%-1.75rem),transparent)] ${width}`}
       >
         <div
           className={`px-5 pt-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] ${bodyClass}`}
