@@ -322,6 +322,8 @@ export class BoardScene {
     metalness: 0.1,
     vertexColors: true,
   });
+  /** Cuts arrows off at the plate edge, so a line sliding out vanishes at the border. */
+  private readonly clipPlanes = [0, 1, 2, 3].map(() => new THREE.Plane());
   private readonly shadowMat = new THREE.MeshBasicMaterial({
     color: '#000000',
     transparent: true,
@@ -373,6 +375,8 @@ export class BoardScene {
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1 : 2),
     );
+    this.renderer.localClippingEnabled = true;
+    this.shadowMat.clippingPlanes = this.clipPlanes;
     this.look = opts.dark ? LOOKS.dark : LOOKS.light;
     this.scene.background = new THREE.Color(this.look.board);
     this.scene.add(this.root);
@@ -560,6 +564,7 @@ export class BoardScene {
       color: '#ffffff',
       roughness: 0.34,
       metalness: 0.1,
+      clippingPlanes: this.clipPlanes,
     });
     const group = new THREE.Group();
     const tube = new THREE.Mesh(new THREE.BufferGeometry(), material);
@@ -1344,6 +1349,19 @@ export class BoardScene {
     this.root.quaternion.copy(this.orient);
     this.aimShadows();
     this.renderer.render(this.scene, this.camera);
+    this.root.updateMatrixWorld();
+    // The plate edges, turned with the board. Anything outside them is cut away.
+    const edge = [
+      [1, 0, width / 2 + 0.4],
+      [-1, 0, width / 2 + 0.4],
+      [0, 1, height / 2 + 0.4],
+      [0, -1, height / 2 + 0.4],
+    ] as const;
+    edge.forEach(([nx, ny, c], i) => {
+      this.clipPlanes[i]
+        ?.set(new THREE.Vector3(nx, ny, 0), c)
+        .applyMatrix4(this.root.matrixWorld);
+    });
   }
 
   resize(): void {
