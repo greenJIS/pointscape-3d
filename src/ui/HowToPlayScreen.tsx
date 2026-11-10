@@ -1,4 +1,5 @@
 import { POOL } from '../view/palette';
+import { Page } from './Page';
 
 interface Props {
   readonly onBack: () => void;
@@ -133,38 +134,25 @@ const TIPS: readonly string[] = [
 
 export function HowToPlayScreen({ onBack }: Props) {
   return (
-    <div className="fixed inset-0 z-20 overflow-y-auto bg-slate-950">
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 p-5">
-        <header className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back"
-            className="grid size-11 place-items-center rounded-full bg-slate-800"
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold text-strong">How to play</h1>
-        </header>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {CARDS.map((c, i) => (
-            <section key={c.title} className="rounded-2xl bg-slate-900 p-4">
-              {c.picture}
-              <h2 className="mt-3 font-bold text-strong">
-                {i + 1}. {c.title}
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">{c.text}</p>
-            </section>
-          ))}
-        </div>
-        <ul className="list-disc rounded-2xl bg-slate-900 py-4 pr-4 pl-8 text-sm text-slate-300">
-          {TIPS.map((t) => (
-            <li key={t} className="py-0.5">
-              {t}
-            </li>
-          ))}
-        </ul>
-      </main>
-    </div>
+    <Page title="How to play" onBack={onBack} overlay>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {CARDS.map((c, i) => (
+          <section key={c.title} className="rounded-3xl p-4 hud-card">
+            {c.picture}
+            <h2 className="mt-3 font-bold text-strong">
+              {i + 1}. {c.title}
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">{c.text}</p>
+          </section>
+        ))}
+      </div>
+      <ul className="list-disc rounded-3xl py-4 pr-4 pl-8 text-sm hud-card">
+        {TIPS.map((t) => (
+          <li key={t} className="py-0.5">
+            {t}
+          </li>
+        ))}
+      </ul>
+    </Page>
   );
 }

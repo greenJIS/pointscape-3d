@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { MAX_NAME_LENGTH, cleanName } from '../game/playerName';
 import type {
   ArrowSpeed,
@@ -6,8 +6,11 @@ import type {
   Settings,
   ThemeMode,
 } from '../game/settings';
+import { revealTheme } from '../game/useDark';
 import { POOL } from '../view/palette';
+import { MoonIcon, SunIcon } from './icons';
 import { Modal, ModalButton } from './Modal';
+import { Page } from './Page';
 
 interface Props {
   readonly name: string;
@@ -22,10 +25,12 @@ interface Props {
 
 function Switch({
   label,
+  hint,
   on,
   onChange,
 }: {
   readonly label: string;
+  readonly hint?: string;
   readonly on: boolean;
   readonly onChange: () => void;
 }) {
@@ -35,22 +40,39 @@ function Switch({
       role="switch"
       aria-checked={on}
       onClick={onChange}
-      className="flex w-full items-center justify-between py-1"
+      className="flex w-full items-center justify-between gap-4 py-2.5 text-left"
     >
-      <span>{label}</span>
+      <span>
+        {label}
+        {hint && <small className="block text-xs text-slate-400">{hint}</small>}
+      </span>
       <span
-        className={`flex h-6 w-11 items-center rounded-full p-0.5 ${on ? 'justify-end bg-teal-300' : 'justify-start bg-slate-700'}`}
+        className={`relative h-7 w-12 shrink-0 rounded-full border-2 border-slate-700 transition-colors duration-200 ${on ? 'bg-teal-300' : 'bg-slate-950'}`}
       >
-        <span className="size-5 rounded-full bg-white" />
+        <span
+          className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${on ? 'translate-x-5' : ''}`}
+        />
       </span>
     </button>
   );
 }
 
-const THEMES: readonly { id: ThemeMode; label: string }[] = [
-  { id: 'dark', label: 'Dark' },
-  { id: 'light', label: 'Light' },
-];
+function Group({
+  title,
+  children,
+}: {
+  readonly title: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl p-4 hud-card">
+      <h2 className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
 
 const SPEEDS: readonly { id: ArrowSpeed; label: string }[] = [
   { id: 'slow', label: 'Slow' },
@@ -74,32 +96,49 @@ export function SettingsScreen({
 }: Props) {
   const [draft, setDraft] = useState(name);
   const [confirming, setConfirming] = useState(false);
+  const themeButton = useRef<HTMLButtonElement>(null);
+  const dark = settings.theme === 'dark';
+  const toggleTheme = () => {
+    const next: ThemeMode = dark ? 'light' : 'dark';
+    const apply = () => onSettings({ ...settings, theme: next });
+    if (themeButton.current) revealTheme(themeButton.current, apply);
+    else apply();
+  };
 
   return (
-    <div className="fixed inset-0 z-20 overflow-y-auto bg-slate-950">
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 p-5">
-        <header className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back"
-            className="grid size-11 place-items-center rounded-full bg-slate-800"
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold text-strong">Settings</h1>
-        </header>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl bg-slate-900 p-4">
-            <label
-              htmlFor="player-name"
-              className="mb-2 block font-semibold text-strong"
+    <>
+      <Page
+        title="Settings"
+        onBack={onBack}
+        overlay
+        width="max-w-2xl"
+        bodyClass="flex flex-col gap-5"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="rounded-2xl bg-red-400 py-3 font-bold text-ink shadow-[0_4px_0_#b91c1c]"
             >
-              Player name
-            </label>
+              Reset progress
+            </button>
+            <p className="text-center text-xs text-slate-400">
+              Pointscape 3D. The art and the levels are original.
+            </p>
+          </>
+        }
+      >
+        <Group title="Player">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="grid size-11 place-items-center rounded-full bg-night font-bold text-link"
+            >
+              {draft.slice(0, 1).toUpperCase()}
+            </span>
             <input
               id="player-name"
+              aria-label="Player name"
               value={draft}
               maxLength={MAX_NAME_LENGTH}
               autoComplete="off"
@@ -109,94 +148,101 @@ export function SettingsScreen({
                 if (next) onName(next);
               }}
               onBlur={() => setDraft(name)}
-              className="w-full rounded-xl border-2 border-slate-700 bg-slate-950 px-3 py-2 font-semibold text-strong outline-none focus:border-teal-300"
+              className="min-w-0 flex-1 rounded-xl border-2 border-slate-700 bg-slate-950 px-3 py-2 font-semibold text-strong outline-none focus:border-teal-300"
             />
-            <p className="mt-2 text-xs text-slate-400">
-              Saved as you type. Reset progress does not change it.
-            </p>
-          </section>
+          </div>
+          <p className="-mt-2 text-xs text-slate-400">
+            Saved as you type. Reset progress does not change it.
+          </p>
+        </Group>
 
-          <section className="rounded-2xl bg-slate-900 p-4">
-            <p className="mb-2 font-semibold text-strong">Theme</p>
-            <div className="grid grid-cols-2 gap-2">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  aria-pressed={settings.theme === t.id}
-                  onClick={() => onSettings({ ...settings, theme: t.id })}
-                  className={`rounded-xl border-2 p-2 text-sm font-semibold ${settings.theme === t.id ? 'border-teal-300 bg-slate-800' : 'border-slate-800 bg-slate-950'}`}
-                >
-                  {t.label}
-                </button>
-              ))}
+        <Group title="Look">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-bold text-strong">Theme</p>
+              <p className="text-xs text-slate-400">
+                {dark ? 'Dark' : 'Light'}. Tap to switch.
+              </p>
             </div>
-          </section>
+            <button
+              ref={themeButton}
+              type="button"
+              role="switch"
+              aria-checked={dark}
+              aria-label="Dark mode"
+              onClick={toggleTheme}
+              className="relative h-12 w-24 shrink-0 rounded-full border-2 border-slate-700 bg-slate-950"
+            >
+              <span className="absolute inset-0 flex items-center justify-between px-3 text-slate-400">
+                <SunIcon className="size-4.5" />
+                <MoonIcon className="size-4.5" />
+              </span>
+              <span
+                className={`absolute top-1 left-1 grid size-9 place-items-center rounded-full bg-teal-300 text-ink shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.3,1.4,0.5,1)] ${dark ? 'translate-x-12' : ''}`}
+              >
+                {dark ? <MoonIcon /> : <SunIcon />}
+              </span>
+            </button>
+          </div>
 
-          <section className="rounded-2xl bg-slate-900 p-4">
-            <p className="mb-2 font-semibold text-strong">Arrow colours</p>
-            <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="mb-2 font-bold text-strong">Arrow colours</p>
+            <div className="mb-3 grid grid-cols-2 gap-2">
               {MODES.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   aria-pressed={settings.colorMode === m.id}
                   onClick={() => onSettings({ ...settings, colorMode: m.id })}
-                  className={`rounded-xl border-2 p-3 text-left ${settings.colorMode === m.id ? 'border-teal-300 bg-slate-800' : 'border-slate-800 bg-slate-950'}`}
+                  className={`rounded-xl border-2 p-3 text-left ${settings.colorMode === m.id ? 'border-teal-300 bg-slate-800' : 'border-slate-700 bg-slate-950'}`}
                 >
                   <span className="block font-bold text-strong">{m.label}</span>
                   <span className="block text-xs text-slate-400">{m.hint}</span>
                 </button>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              {settings.colorMode === 'multi' ? (
-                POOL.map((c) => (
+            <div className="flex items-center gap-3">
+              {POOL.map((c) =>
+                settings.colorMode === 'multi' ? (
                   <span
                     key={c}
-                    className="size-8 rounded-full"
+                    className="size-9 rounded-full"
                     style={{ background: c }}
                   />
-                ))
-              ) : (
-                <>
-                  {POOL.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      aria-label={`Use colour ${c}`}
-                      aria-pressed={settings.oneColor === c}
-                      onClick={() => onSettings({ ...settings, oneColor: c })}
-                      className={`size-8 rounded-full border-2 ${settings.oneColor === c ? 'border-strong' : 'border-transparent'}`}
-                      style={{ background: c }}
-                    />
-                  ))}
-                </>
+                ) : (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`Use colour ${c}`}
+                    aria-pressed={settings.oneColor === c}
+                    onClick={() => onSettings({ ...settings, oneColor: c })}
+                    className={`size-9 rounded-full border-2 transition-transform ${settings.oneColor === c ? 'scale-110 border-strong' : 'border-transparent'}`}
+                    style={{ background: c }}
+                  />
+                ),
               )}
             </div>
-          </section>
+          </div>
+        </Group>
 
-          <section className="rounded-2xl bg-slate-900 p-4">
-            <p className="mb-2 font-semibold text-strong">Arrow speed</p>
-            <div className="grid grid-cols-3 gap-2">
-              {SPEEDS.map((s) => (
+        <Group title="Play">
+          <div>
+            <p className="mb-2 font-bold text-strong">Arrow speed</p>
+            <div className="grid grid-cols-3 rounded-full border-2 border-slate-700 bg-slate-950 p-1 text-center text-sm font-semibold">
+              {SPEEDS.map((sp) => (
                 <button
-                  key={s.id}
+                  key={sp.id}
                   type="button"
-                  aria-pressed={settings.arrowSpeed === s.id}
-                  onClick={() => onSettings({ ...settings, arrowSpeed: s.id })}
-                  className={`rounded-xl border-2 p-2 text-sm font-semibold ${settings.arrowSpeed === s.id ? 'border-teal-300 bg-slate-800' : 'border-slate-800 bg-slate-950'}`}
+                  aria-pressed={settings.arrowSpeed === sp.id}
+                  onClick={() => onSettings({ ...settings, arrowSpeed: sp.id })}
+                  className={`rounded-full py-2 transition-colors ${settings.arrowSpeed === sp.id ? 'bg-teal-300 text-ink' : ''}`}
                 >
-                  {s.label}
+                  {sp.label}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              How fast a tapped arrow slides off the board.
-            </p>
-          </section>
-
-          <section className="rounded-2xl bg-slate-900 p-4">
+          </div>
+          <div className="divide-y divide-slate-700">
             <Switch
               label="Show layers"
               on={settings.showLayers}
@@ -220,44 +266,31 @@ export function SettingsScreen({
             />
             <Switch
               label="Low power mode"
+              hint="No shadows or soft effects, for older phones."
               on={settings.lowPower}
               onChange={() =>
                 onSettings({ ...settings, lowPower: !settings.lowPower })
               }
             />
-            <p className="mt-1 text-xs text-slate-400">
-              Low power turns off shadows and soft effects for older phones.
+          </div>
+        </Group>
+
+        {dev && (
+          <section className="rounded-3xl border border-amber-400/40 bg-slate-900 p-4">
+            <p className="mb-1 flex w-fit items-center gap-2 rounded-full bg-night py-0.5 pr-3 pl-1 font-semibold text-caution">
+              <span className="rounded-sm bg-amber-400 px-1.5 text-xs font-bold text-ink">
+                DEV
+              </span>
+              Developer
             </p>
+            <Switch
+              label="Unlock all levels"
+              on={dev.on}
+              onChange={dev.toggle}
+            />
           </section>
-
-          {dev && (
-            <section className="rounded-2xl border border-amber-400/40 bg-slate-900 p-4">
-              <p className="mb-1 flex w-fit items-center gap-2 rounded-full bg-night py-0.5 pr-3 pl-1 font-semibold text-caution">
-                <span className="rounded-sm bg-amber-400 px-1.5 text-xs font-bold text-ink">
-                  DEV
-                </span>
-                Developer
-              </p>
-              <Switch
-                label="Unlock all levels"
-                on={dev.on}
-                onChange={dev.toggle}
-              />
-            </section>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="rounded-xl bg-red-400 py-3 font-bold text-ink"
-        >
-          Reset progress
-        </button>
-        <p className="pb-4 text-center text-xs text-slate-400">
-          Pointscape 3D. The art and the levels are original.
-        </p>
-      </main>
+        )}
+      </Page>
 
       {confirming && (
         <Modal>
@@ -279,6 +312,6 @@ export function SettingsScreen({
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }

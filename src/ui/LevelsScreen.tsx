@@ -17,6 +17,7 @@ import {
   type Progress,
 } from '../game/progress';
 import { accentFor } from './accents';
+import { Page } from './Page';
 
 interface Props {
   readonly difficulty: number;
@@ -84,63 +85,60 @@ export function LevelsScreen({
   };
 
   return (
-    <main className="mx-auto flex h-screen max-w-5xl flex-col gap-3 p-5">
-      <header className="flex items-center gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back"
-          className="grid size-11 place-items-center rounded-full bg-slate-800"
-        >
-          ←
-        </button>
-        <h1 className="text-xl font-bold text-strong">
-          {trackName(difficulty, layers)}
-        </h1>
-      </header>
-
-      <div className="flex flex-col gap-2 lg:max-w-md">
-        <div className="flex gap-2" role="group" aria-label="Difficulty">
-          {DIFFICULTIES.map((d, i) => tab(i, layers, d.name, i === difficulty))}
-        </div>
-        <div className="flex gap-2" role="group" aria-label="Layers">
-          {LAYER_COUNTS.map((l) => tab(difficulty, l, `${l}L`, l === layers))}
-        </div>
-      </div>
-
-      <div className="rounded-xl bg-slate-900 p-3 text-sm">
-        {opening.length > 0 ? (
-          <>
-            <div className="flex justify-between">
-              <span className="text-slate-300">
-                {opening.every((t) =>
-                  isTrackUnlocked(t.difficulty, t.layers, progress, false),
-                )
-                  ? 'Unlocked: '
-                  : 'Unlocks '}
-                {opening
-                  .map((t) => trackName(t.difficulty, t.layers))
-                  .join(' and ')}
-              </span>
-              <span className="text-slate-400">
-                {Math.min(done, UNLOCK_AFTER)} / {UNLOCK_AFTER}
-              </span>
+    <Page
+      title={trackName(difficulty, layers)}
+      onBack={onBack}
+      width="max-w-5xl"
+      top={
+        <>
+          <div className="flex flex-col gap-2 lg:max-w-md">
+            <div className="flex gap-2" role="group" aria-label="Difficulty">
+              {DIFFICULTIES.map((d, i) =>
+                tab(i, layers, d.name, i === difficulty),
+              )}
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
-              <div
-                className={`h-full rounded-full ${accent.bg}`}
-                style={{
-                  width: `${(Math.min(done, UNLOCK_AFTER) / UNLOCK_AFTER) * 100}%`,
-                }}
-              />
+            <div className="flex gap-2" role="group" aria-label="Layers">
+              {LAYER_COUNTS.map((l) =>
+                tab(difficulty, l, `${l}L`, l === layers),
+              )}
             </div>
-          </>
-        ) : (
-          <span className="text-slate-300">Final level set</span>
-        )}
-      </div>
+          </div>
 
-      <ol className="grid min-h-0 flex-1 auto-rows-min grid-cols-5 gap-2 overflow-y-auto pb-2 lg:grid-cols-10">
+          <div className="rounded-2xl p-3 text-sm hud-card">
+            {opening.length > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-slate-300">
+                    {opening.every((t) =>
+                      isTrackUnlocked(t.difficulty, t.layers, progress, false),
+                    )
+                      ? 'Unlocked: '
+                      : 'Unlocks '}
+                    {opening
+                      .map((t) => trackName(t.difficulty, t.layers))
+                      .join(' and ')}
+                  </span>
+                  <span className="text-slate-400">
+                    {Math.min(done, UNLOCK_AFTER)} / {UNLOCK_AFTER}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className={`h-full rounded-full ${accent.bg}`}
+                    style={{
+                      width: `${(Math.min(done, UNLOCK_AFTER) / UNLOCK_AFTER) * 100}%`,
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <span className="text-slate-300">Final level set</span>
+            )}
+          </div>
+        </>
+      }
+    >
+      <ol className="grid auto-rows-min grid-cols-5 gap-2 lg:grid-cols-10">
         {Array.from({ length: LEVELS_PER_TRACK }, (_, k) => k + 1).map((l) => {
           const open = isUnlocked(difficulty, layers, l, progress, unlockAll);
           const cleared = isCleared(progress, difficulty, layers, l);
@@ -166,6 +164,6 @@ export function LevelsScreen({
           );
         })}
       </ol>
-    </main>
+    </Page>
   );
 }

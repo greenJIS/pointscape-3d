@@ -13,6 +13,7 @@ import {
   type Progress,
 } from '../game/progress';
 import { accentFor } from './accents';
+import { Page } from './Page';
 
 interface Props {
   readonly progress: Progress;
@@ -31,30 +32,21 @@ export function DifficultyScreen({
   onBack,
 }: Props) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-4 p-5">
-      <header className="flex items-center gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back"
-          className="grid size-11 place-items-center rounded-full bg-slate-800"
-        >
-          ←
-        </button>
-        <h1 className="text-xl font-bold text-strong">Choose a level set</h1>
-      </header>
-      <p className="text-sm text-slate-400">
-        Difficulty sets the grid size. Layers set how many boards are stacked.
-      </p>
+    <Page
+      title="Choose a level set"
+      onBack={onBack}
+      top={
+        <p className="text-sm text-slate-400">
+          Difficulty sets the grid size. Layers set how many boards are stacked.
+        </p>
+      }
+    >
       <ul className="flex flex-col gap-3">
         {DIFFICULTIES.map((d, i) => {
           const accent = accentFor(i);
           const side = levelParams(i, 1, 1).width;
           return (
-            <li
-              key={d.id}
-              className="rounded-2xl border border-slate-700 bg-slate-900 p-3"
-            >
+            <li key={d.id} className="rounded-3xl p-3 hud-card">
               <h2
                 className={`mb-2 w-fit rounded-full bg-night px-3 py-0.5 font-bold ${accent.text}`}
               >
@@ -101,6 +93,6 @@ export function DifficultyScreen({
           );
         })}
       </ul>
-    </main>
+    </Page>
   );
 }
