@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createRng } from './core/rng';
 import { LEVELS_PER_TRACK } from './core/difficulty';
 import { unlockAllEnabled } from './game/dev';
@@ -22,10 +29,11 @@ import {
   type SaveData,
 } from './game/storage';
 import { DifficultyScreen } from './ui/DifficultyScreen';
-import { GameScreen } from './ui/GameScreen';
 import { HomeScreen } from './ui/HomeScreen';
 import { HowToPlayScreen } from './ui/HowToPlayScreen';
+import { LevelGate } from './ui/LevelGate';
 import { LevelsScreen } from './ui/LevelsScreen';
+import { Loading } from './ui/Loading';
 import { NameScreen } from './ui/NameScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
 
@@ -44,6 +52,11 @@ type Screen =
       readonly layers: number;
       readonly level: number;
     };
+
+// The board and three.js load only when a level opens, so Home paints sooner.
+const GameScreen = lazy(() =>
+  import('./ui/GameScreen').then((m) => ({ default: m.GameScreen })),
+);
 
 const TOAST_MS = 2200;
 
@@ -199,46 +212,56 @@ export default function App() {
     case 'game': {
       const { difficulty, layers, level } = screen;
       body = (
-        <GameScreen
+        <LevelGate
           key={`${difficulty}:${layers}:${level}`}
           difficulty={difficulty}
           layers={layers}
           level={level}
-          hints={progress.hints}
-          dark={dark}
-          colorMode={save.settings.colorMode}
-          oneColor={save.settings.oneColor}
-          lowPower={save.settings.lowPower}
-          sound={save.settings.sound}
-          arrowSpeed={save.settings.arrowSpeed}
-          showLayers={save.settings.showLayers}
-          showDots={save.settings.showDots}
-          clearedInTrack={clearedCount(progress, difficulty, layers)}
-          pendingTracks={opens(difficulty, layers).filter(
-            (t) => !isTrackUnlocked(t.difficulty, t.layers, progress, false),
+        >
+          {(board) => (
+            <GameScreen
+              board={board}
+              difficulty={difficulty}
+              layers={layers}
+              level={level}
+              hints={progress.hints}
+              dark={dark}
+              colorMode={save.settings.colorMode}
+              oneColor={save.settings.oneColor}
+              lowPower={save.settings.lowPower}
+              sound={save.settings.sound}
+              arrowSpeed={save.settings.arrowSpeed}
+              showLayers={save.settings.showLayers}
+              showDots={save.settings.showDots}
+              clearedInTrack={clearedCount(progress, difficulty, layers)}
+              pendingTracks={opens(difficulty, layers).filter(
+                (t) =>
+                  !isTrackUnlocked(t.difficulty, t.layers, progress, false),
+              )}
+              onHintUsed={onHintUsed}
+              onWin={() => onWin(difficulty, layers, level)}
+              onNext={() =>
+                setScreen({
+                  name: 'game',
+                  difficulty,
+                  layers,
+                  level: Math.min(level + 1, LEVELS_PER_TRACK),
+                })
+              }
+              onLevels={() => setScreen({ name: 'levels', difficulty, layers })}
+              showCoach={
+                difficulty === 0 &&
+                layers === 1 &&
+                level === 1 &&
+                !progress.seenTutorial
+              }
+              onCoachDone={onCoachDone}
+              onSettings={() => setSettingsOpen(true)}
+              onHelp={() => setHelpOpen(true)}
+              onHome={() => setScreen({ name: 'home' })}
+            />
           )}
-          onHintUsed={onHintUsed}
-          onWin={() => onWin(difficulty, layers, level)}
-          onNext={() =>
-            setScreen({
-              name: 'game',
-              difficulty,
-              layers,
-              level: Math.min(level + 1, LEVELS_PER_TRACK),
-            })
-          }
-          onLevels={() => setScreen({ name: 'levels', difficulty, layers })}
-          showCoach={
-            difficulty === 0 &&
-            layers === 1 &&
-            level === 1 &&
-            !progress.seenTutorial
-          }
-          onCoachDone={onCoachDone}
-          onSettings={() => setSettingsOpen(true)}
-          onHelp={() => setHelpOpen(true)}
-          onHome={() => setScreen({ name: 'home' })}
-        />
+        </LevelGate>
       );
       break;
     }
@@ -246,7 +269,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
-      {body}
+      <Suspense fallback={<Loading />}>{body}</Suspense>
       {settingsOpen && (
         <SettingsScreen
           name={save.name}

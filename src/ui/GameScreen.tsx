@@ -5,7 +5,6 @@ import {
   trackName,
   UNLOCK_AFTER,
 } from '../core/difficulty';
-import { buildLevel } from '../core/levels';
 import type { Arrow, Level } from '../core/types';
 import type { ClearResult, Track } from '../game/progress';
 import {
@@ -29,10 +28,13 @@ import { ANIM, arrowPath, slideDistance } from '../view/path';
 import { playSound } from '../view/sound';
 import { accentFor } from './accents';
 import { CoachMark } from './CoachMark';
+import { Loading } from './Loading';
 import { PauseIcon } from './icons';
 import { Modal, ModalButton } from './Modal';
 
 interface Props {
+  /** The built level. `LevelGate` builds it off the main thread. */
+  readonly board: Level;
   readonly difficulty: number;
   readonly layers: number;
   readonly level: number;
@@ -81,6 +83,7 @@ function slideSeconds(
 }
 
 export function GameScreen({
+  board,
   difficulty,
   layers,
   level,
@@ -105,10 +108,6 @@ export function GameScreen({
   onHelp,
   onHome,
 }: Props) {
-  const board = useMemo(
-    () => buildLevel(difficulty, layers, level),
-    [difficulty, layers, level],
-  );
   const [session, setSession] = useState<Session>(() =>
     startSession(board, livesFor(difficulty, layers)),
   );
@@ -126,6 +125,8 @@ export function GameScreen({
   const [hideFront, setHideFront] = useState(0);
   const [xray, setXray] = useState(false);
   const [gl] = useState(webglAvailable);
+  // The flat fallback draws at once. The 3D board reports when its first frame is up.
+  const [boardReady, setBoardReady] = useState(!gl);
   const reported = useRef(false);
   // Latest session, readable by a tap that lands before React re-renders.
   const live = useRef(session);
@@ -215,6 +216,13 @@ export function GameScreen({
 
   return (
     <main className="relative h-dvh overflow-hidden">
+      {!boardReady && (
+        <Loading
+          label="Drawing board"
+          detail={`${trackName(difficulty, layers)} · Level ${level}`}
+          overlay
+        />
+      )}
       <div className="absolute inset-0">
         {gl ? (
           <Board3D
@@ -232,6 +240,7 @@ export function GameScreen({
             tide={tide}
             resetCount={resetCount}
             onTap={onTap}
+            onReady={() => setBoardReady(true)}
             onViewChange={setViewDefault}
           />
         ) : (

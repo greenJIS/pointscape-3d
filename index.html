@@ -9,9 +9,312 @@
     <meta name="theme-color" content="#f1f5f9" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Pointscape 3D</title>
+    <style>
+      /* Colours match the slate scale of each theme in src/index.css. */
+      #splash {
+        --sp-bg: #f1f5f9;
+        --sp-faint: #e2e8f0;
+        --sp-panel: #e2e8f0;
+        --sp-line: #94a3b8;
+        --sp-track: #ffffff;
+        --sp-ink: #1e293b;
+        background: var(--sp-bg);
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        overflow: hidden;
+        font:
+          700 18px/1.2 Roboto,
+          system-ui,
+          sans-serif;
+        background-image: radial-gradient(
+          circle,
+          var(--sp-faint) 1.6px,
+          transparent 1.8px
+        );
+        background-size: 44px 44px;
+      }
+      #splash-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        width: 100%;
+        max-width: 448px;
+        padding: 0 20px;
+        box-sizing: border-box;
+      }
+      #splash-logo {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 30px;
+        font-weight: 900;
+        line-height: 0.9;
+        letter-spacing: -0.025em;
+        color: var(--sp-ink);
+      }
+      #splash-logo span + span {
+        margin-top: 4px;
+        font-size: 2.6em;
+        line-height: 1;
+        letter-spacing: 0.05em;
+        color: #00f5d0;
+        text-shadow:
+          2px 2px 0 #14b8a6,
+          4px 4px 0 #0f766e,
+          6px 6px 0 #115e59;
+      }
+      #splash-board {
+        width: 100%;
+        max-width: 336px;
+        overflow: hidden;
+        box-sizing: border-box;
+        border-radius: 24px;
+        border: 1px solid var(--sp-line);
+        background: var(--sp-panel);
+        box-shadow:
+          0 2px 0 var(--sp-line),
+          0 12px 26px rgb(0 0 0 / 0.35);
+      }
+      #splash-board svg {
+        display: block;
+        width: 100%;
+      }
+      #splash-arrows {
+        filter: drop-shadow(3px 4px 0 rgb(0 0 0 / 0.3));
+      }
+      #splash-board circle {
+        fill: var(--sp-line);
+      }
+      .sa {
+        animation: splash-arrow 4.2s cubic-bezier(0.5, 0, 0.8, 0.4) infinite;
+      }
+      #splash p {
+        margin: 0;
+        text-align: center;
+      }
+      #splash-title {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--sp-ink);
+      }
+      #splash-bar {
+        width: 260px;
+        height: 10px;
+        overflow: hidden;
+        box-sizing: border-box;
+        border-radius: 99px;
+        border: 1px solid var(--sp-line);
+        background: var(--sp-track);
+      }
+      #splash-bar i {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 99px;
+        background: linear-gradient(
+          90deg,
+          #00f5d0,
+          #5b6bff,
+          #ff2bd6,
+          #ff8a00,
+          #ffe600
+        );
+        animation: splash-bar 1.4s ease-in-out infinite;
+      }
+      html[data-theme='dark'] #splash {
+        --sp-bg: #020617;
+        --sp-faint: #1e293b;
+        --sp-panel: #1e293b;
+        --sp-line: #475569;
+        --sp-track: #0f172a;
+        --sp-ink: #e2e8f0;
+      }
+      @keyframes splash-arrow {
+        0%,
+        12% {
+          transform: translate(0, 0);
+          opacity: 1;
+        }
+        38% {
+          transform: translate(var(--dx), var(--dy));
+          opacity: 1;
+        }
+        39%,
+        86% {
+          transform: translate(var(--dx), var(--dy));
+          opacity: 0;
+        }
+        87% {
+          transform: translate(0, 0);
+          opacity: 0;
+        }
+        100% {
+          transform: translate(0, 0);
+          opacity: 1;
+        }
+      }
+      @keyframes splash-bar {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(260%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sa,
+        #splash-bar i {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <script>
+      // Pick the saved theme before the first paint, so there is no light flash in dark mode.
+      // Key and shape must match STORAGE_KEY and the settings in src/game/storage.ts.
+      try {
+        var t = JSON.parse(localStorage.getItem('pointscape-3d:v1') || '{}')
+          .settings.theme;
+        if (t === 'dark' || t === 'light')
+          document.documentElement.dataset.theme = t;
+      } catch (e) {}
+      var dk = document.documentElement.dataset.theme === 'dark';
+      document.documentElement.style.background = dk ? '#020617' : '#f1f5f9';
+    </script>
+    <div id="root">
+      <!-- Same look as the loading screen in the app, shown until React mounts. -->
+      <div id="splash" role="status">
+        <div id="splash-box">
+          <h1 id="splash-logo"><span>Pointscape</span><span>3D</span></h1>
+          <div id="splash-board" aria-hidden="true">
+            <svg viewBox="0 0 336 224">
+              <circle cx="28" cy="28" r="2.6" />
+              <circle cx="84" cy="28" r="2.6" />
+              <circle cx="140" cy="28" r="2.6" />
+              <circle cx="196" cy="28" r="2.6" />
+              <circle cx="252" cy="28" r="2.6" />
+              <circle cx="308" cy="28" r="2.6" />
+              <circle cx="28" cy="84" r="2.6" />
+              <circle cx="84" cy="84" r="2.6" />
+              <circle cx="140" cy="84" r="2.6" />
+              <circle cx="196" cy="84" r="2.6" />
+              <circle cx="252" cy="84" r="2.6" />
+              <circle cx="308" cy="84" r="2.6" />
+              <circle cx="28" cy="140" r="2.6" />
+              <circle cx="84" cy="140" r="2.6" />
+              <circle cx="140" cy="140" r="2.6" />
+              <circle cx="196" cy="140" r="2.6" />
+              <circle cx="252" cy="140" r="2.6" />
+              <circle cx="308" cy="140" r="2.6" />
+              <circle cx="28" cy="196" r="2.6" />
+              <circle cx="84" cy="196" r="2.6" />
+              <circle cx="140" cy="196" r="2.6" />
+              <circle cx="196" cy="196" r="2.6" />
+              <circle cx="252" cy="196" r="2.6" />
+              <circle cx="308" cy="196" r="2.6" />
+              <g id="splash-arrows">
+                <g
+                  class="sa"
+                  style="--dx: 420px; --dy: 0px; animation-delay: 0s"
+                >
+                  <line
+                    x1="28"
+                    y1="28"
+                    x2="130"
+                    y2="28"
+                    stroke="#00f5d0"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="150,28 130,41 130,15" fill="#00f5d0" />
+                </g>
+                <g
+                  class="sa"
+                  style="--dx: 0px; --dy: -300px; animation-delay: 0.5s"
+                >
+                  <line
+                    x1="28"
+                    y1="196"
+                    x2="28"
+                    y2="114"
+                    stroke="#ffe600"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="28,94 41,114 15,114" fill="#ffe600" />
+                </g>
+                <g
+                  class="sa"
+                  style="--dx: 0px; --dy: -300px; animation-delay: 1s"
+                >
+                  <line
+                    x1="140"
+                    y1="164"
+                    x2="140"
+                    y2="96"
+                    stroke="#ff8a00"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="140,76 153,96 127,96" fill="#ff8a00" />
+                </g>
+                <g
+                  class="sa"
+                  style="--dx: -420px; --dy: 0px; animation-delay: 1.5s"
+                >
+                  <line
+                    x1="308"
+                    y1="84"
+                    x2="210"
+                    y2="84"
+                    stroke="#ff2bd6"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="190,84 210,71 210,97" fill="#ff2bd6" />
+                </g>
+                <g
+                  class="sa"
+                  style="--dx: 0px; --dy: -300px; animation-delay: 2s"
+                >
+                  <line
+                    x1="308"
+                    y1="196"
+                    x2="308"
+                    y2="154"
+                    stroke="#00f5d0"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="308,134 321,154 295,154" fill="#00f5d0" />
+                </g>
+                <g
+                  class="sa"
+                  style="--dx: 420px; --dy: 0px; animation-delay: 2.5s"
+                >
+                  <line
+                    x1="84"
+                    y1="196"
+                    x2="204"
+                    y2="196"
+                    stroke="#5b6bff"
+                    stroke-width="14"
+                    stroke-linecap="round"
+                  />
+                  <polygon points="224,196 204,209 204,183" fill="#5b6bff" />
+                </g>
+              </g>
+            </svg>
+          </div>
+          <p id="splash-title">Loading</p>
+          <div id="splash-bar" aria-hidden="true"><i></i></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
