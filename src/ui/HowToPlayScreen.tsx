@@ -116,7 +116,7 @@ const CARDS: readonly {
   },
   {
     title: 'Clear the board',
-    text: 'Remove every arrow before you run out of three hearts.',
+    text: 'Remove every arrow before you run out of hearts. Bigger boards give you more.',
     picture: (
       <Mini>
         <Arrow x={1.6} y={1.6} length={1.4} color={POOL[1] ?? '#fff'} />
