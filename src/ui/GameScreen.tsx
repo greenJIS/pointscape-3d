@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DIFFICULTIES,
   LEVELS_PER_TRACK,
@@ -143,6 +143,20 @@ export function GameScreen({
   const reported = useRef(false);
   // Latest session, readable by a tap that lands before React re-renders.
   const live = useRef(session);
+  // Pending timeouts, cleared on Restart and unmount so a late one never hits a new game.
+  const timers = useRef(new Set<number>());
+  const later = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timers.current.delete(id);
+      fn();
+    }, ms);
+    timers.current.add(id);
+  }, []);
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current.clear();
+  }, []);
+  useEffect(() => clearTimers, [clearTimers]);
   const spec = DIFFICULTIES[difficulty];
   const layerView = useMemo<LayerView>(
     () => ({ gap, hideFront, xray, showLayers, showDots }),
@@ -159,8 +173,9 @@ export function GameScreen({
       live.current = r.session;
       setSession(r.session);
       setHintId(null);
+      if (showCoach) onCoachDone();
       if (r.session.status === 'lost') {
-        window.setTimeout(() => {
+        later(() => {
           setLoseShown(true);
           if (sound) playSound('lose');
         }, ANIM.loseCard * 1000);
@@ -171,7 +186,7 @@ export function GameScreen({
         const arrow = board.arrows.find((a) => a.id === arrowId);
         if (arrow) {
           setLeaving((m) => new Map(m).set(arrowId, arrow));
-          window.setTimeout(
+          later(
             () =>
               setLeaving((m) => {
                 const next = new Map(m);
@@ -188,7 +203,7 @@ export function GameScreen({
             setTideOrigin({ x: head.x, y: head.y });
             setTide(true);
           }
-          window.setTimeout(
+          later(
             () => {
               setWinShown(true);
               if (sound) playSound('win');
@@ -199,10 +214,10 @@ export function GameScreen({
         }
       } else {
         setFlashId(arrowId);
-        window.setTimeout(() => setFlashId(null), ANIM.flashHold * 1000);
+        later(() => setFlashId(null), ANIM.flashHold * 1000);
       }
     },
-    [board, onWin, sound, slideRate],
+    [board, onWin, sound, slideRate, later, showCoach, onCoachDone],
   );
 
   const onHint = () => {
@@ -218,7 +233,9 @@ export function GameScreen({
   };
 
   const onRestart = () => {
+    clearTimers();
     reported.current = false;
+    setFlashId(null);
     setResult(null);
     setTide(false);
     setTideOrigin(undefined);
@@ -314,6 +331,7 @@ export function GameScreen({
         </div>
 
         <span
+          role="img"
           aria-label={`${session.lives} lives left`}
           className="absolute top-18 left-3 rounded-full px-3 py-1.5 text-lg tracking-tight hud-card sm:top-5 sm:left-1/2 sm:-translate-x-1/2 sm:text-2xl"
         >
@@ -359,13 +377,15 @@ export function GameScreen({
           💡 {hints}
         </button>
 
-        <p className="absolute bottom-3 left-1/2 hidden w-[min(22rem,calc(100%-14rem))] -translate-x-1/2 rounded-2xl px-3 py-2 text-center text-xs hud-card sm:bottom-5 sm:text-sm sm:[@media(min-height:720px)]:block">
-          <b>Tip</b> · Hold an arrow to preview its path without risking a
-          heart.
-        </p>
+        {gl && (
+          <p className="absolute bottom-3 left-1/2 hidden w-[min(22rem,calc(100%-14rem))] -translate-x-1/2 rounded-2xl px-3 py-2 text-center text-xs hud-card sm:bottom-5 sm:text-sm sm:[@media(min-height:720px)]:block">
+            <b>Tip</b> · Hold an arrow to preview its path without risking a
+            heart.
+          </p>
+        )}
 
         <div className="absolute right-3 bottom-3 flex flex-col items-end gap-2 sm:right-5 sm:bottom-5">
-          {board.layers > 1 && layersOpen && (
+          {gl && board.layers > 1 && layersOpen && (
             <div className="w-64 rounded-2xl p-3 text-xs hud-card">
               <p className="mb-2 font-semibold">Layers {board.layers}</p>
               <label className="flex items-center gap-2">
@@ -387,7 +407,7 @@ export function GameScreen({
                     type="button"
                     aria-label="Hide fewer layers"
                     onClick={() => setHideFront((n) => Math.max(0, n - 1))}
-                    className="size-6 rounded-sm bg-slate-500/30"
+                    className="size-11 rounded-lg bg-slate-500/30"
                   >
                     -
                   </button>
@@ -398,7 +418,7 @@ export function GameScreen({
                     onClick={() =>
                       setHideFront((n) => Math.min(board.layers - 1, n + 1))
                     }
-                    className="size-6 rounded-sm bg-slate-500/30"
+                    className="size-11 rounded-lg bg-slate-500/30"
                   >
                     +
                   </button>
@@ -418,7 +438,7 @@ export function GameScreen({
             </div>
           )}
           <div className="flex gap-2">
-            {board.layers > 1 && (
+            {gl && board.layers > 1 && (
               <button
                 type="button"
                 aria-expanded={layersOpen}
