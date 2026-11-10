@@ -758,8 +758,15 @@ export class BoardScene {
     return v.solid;
   }
 
-  private hintActive(v: ArrowView, now: number): boolean {
-    return this.hintId === v.arrow.id && now < this.hintStart + ANIM.hintTime;
+  private hintActive(v: ArrowView): boolean {
+    return this.hintId === v.arrow.id;
+  }
+
+  /** 0 to 1 and back, over and over, until the hint is cleared by the next tap. */
+  private hintPulse(now: number): number {
+    return Math.abs(
+      Math.sin(((now - this.hintStart) / ANIM.hintTime) * Math.PI),
+    );
   }
 
   /** Which arrows can sit in the merged mesh: idle ones with nothing animating. */
@@ -771,7 +778,7 @@ export class BoardScene {
         v.flashUntil === 0 &&
         now >= v.jiggleT0 + ANIM.jiggle &&
         v.group.position.lengthSq() === 0 &&
-        !this.hintActive(v, now);
+        !this.hintActive(v);
       if (!v.want && v.batched) {
         // Leaving the merged mesh must show at once, or the arrow draws twice.
         v.batched = false;
@@ -1150,8 +1157,8 @@ export class BoardScene {
         color.lerp(new THREE.Color(BLOCKED), k);
       }
     }
-    if (this.hintActive(v, now)) {
-      const k = Math.sin(((now - this.hintStart) / ANIM.hintTime) * Math.PI);
+    if (this.hintActive(v)) {
+      const k = this.hintPulse(now);
       color.lerp(WHITE, ANIM.hintWhite * k);
     }
     return color;
@@ -1161,15 +1168,13 @@ export class BoardScene {
   private updateEffects(now: number): boolean {
     let active = false;
     for (const v of this.views.values()) {
-      const hint = this.hintActive(v, now);
+      const hint = this.hintActive(v);
       const flash = v.flashUntil > 0 && now < v.flashUntil;
       const wasHint = v.head.scale.y !== 1;
       if (!hint && !flash && !wasHint) continue;
       active = true;
       v.material.color.copy(this.displayColor(v, now));
-      const k = hint
-        ? Math.sin(((now - this.hintStart) / ANIM.hintTime) * Math.PI)
-        : 0;
+      const k = hint ? this.hintPulse(now) : 0;
       const s = 1 + ANIM.hintHead * k;
       v.head.scale.set(1, s, s);
       if (!hint && wasHint) {
@@ -1621,15 +1626,23 @@ export class BoardScene {
     this.headGeo.dispose();
     this.env?.dispose();
     this.renderer.dispose();
+    // Free the GPU context now. Browsers allow only about 16, and a level change makes a new one.
+    this.renderer.forceContextLoss();
   }
 }
 
-/** True when the browser can make a WebGL context. */
+let webglProbe: boolean | undefined;
+
+/** True when the browser can make a WebGL context. Probed once, and the probe context is freed. */
 export function webglAvailable(): boolean {
+  if (webglProbe !== undefined) return webglProbe;
   try {
     const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') ?? c.getContext('webgl'));
+    const gl = c.getContext('webgl2') ?? c.getContext('webgl');
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    webglProbe = !!gl;
   } catch {
-    return false;
+    webglProbe = false;
   }
+  return webglProbe;
 }
