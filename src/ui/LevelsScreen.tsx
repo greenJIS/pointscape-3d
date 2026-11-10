@@ -71,7 +71,9 @@ export function LevelsScreen({
         key={label}
         type="button"
         onClick={() => pick(d, l)}
-        className={`flex-1 rounded-lg py-2 text-xs font-bold ${
+        aria-label={open ? undefined : `${label}, locked`}
+        aria-pressed={active}
+        className={`flex-1 rounded-lg py-3 text-xs font-bold ${
           active
             ? `${accentFor(d).bg} text-ink`
             : open

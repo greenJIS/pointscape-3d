@@ -49,7 +49,7 @@ export function NameScreen({ dark, lowPower, onDone }: Props) {
           <button
             type="button"
             onClick={() => onDone('')}
-            className="mt-4 rounded-full px-4 py-2 text-sm font-semibold hud-card"
+            className="mt-4 rounded-full px-4 py-3 text-sm font-semibold hud-card"
           >
             Skip
           </button>

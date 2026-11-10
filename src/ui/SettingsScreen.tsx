@@ -235,7 +235,7 @@ export function SettingsScreen({
                   type="button"
                   aria-pressed={settings.arrowSpeed === sp.id}
                   onClick={() => onSettings({ ...settings, arrowSpeed: sp.id })}
-                  className={`rounded-full py-2 transition-colors ${settings.arrowSpeed === sp.id ? 'bg-teal-300 text-ink' : ''}`}
+                  className={`rounded-full py-3 transition-colors ${settings.arrowSpeed === sp.id ? 'bg-teal-300 text-ink' : ''}`}
                 >
                   {sp.label}
                 </button>
@@ -293,7 +293,7 @@ export function SettingsScreen({
       </Page>
 
       {confirming && (
-        <Modal>
+        <Modal onClose={() => setConfirming(false)}>
           <h2 className="text-xl font-bold text-strong">Reset progress?</h2>
           <p className="mt-2 text-sm text-slate-400">
             All cleared levels and hints are removed. Your name and settings

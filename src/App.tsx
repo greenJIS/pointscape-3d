@@ -303,7 +303,7 @@ export default function App() {
       {toast !== null && (
         <div
           role="status"
-          className="fixed top-12 left-1/2 z-40 -translate-x-1/2 rounded-full bg-teal-300 px-4 py-2 text-sm font-semibold text-ink shadow-lg"
+          className="pointer-events-none fixed bottom-20 left-1/2 z-40 -translate-x-1/2 rounded-full bg-teal-300 px-4 py-2 text-sm font-semibold text-ink shadow-lg"
         >
           {toast}
         </div>
