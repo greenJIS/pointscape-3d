@@ -6,8 +6,7 @@ import {
   UNLOCK_AFTER,
 } from '../core/difficulty';
 import { buildLevel } from '../core/levels';
-import { headOf } from '../core/board';
-import type { Arrow, Level, Vec3 } from '../core/types';
+import type { Arrow, Level } from '../core/types';
 import type { ClearResult, Track } from '../game/progress';
 import {
   arrowsLeft,
@@ -116,7 +115,7 @@ export function GameScreen({
   const [leaving, setLeaving] = useState<ReadonlyMap<number, Arrow>>(new Map());
   const [flashId, setFlashId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
-  const [rippleFrom, setRippleFrom] = useState<Vec3 | null>(null);
+  const [tide, setTide] = useState(false);
   const [winShown, setWinShown] = useState(false);
   const [loseShown, setLoseShown] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -170,7 +169,7 @@ export function GameScreen({
         }
         if (r.session.status === 'won' && !reported.current) {
           reported.current = true;
-          if (arrow) setRippleFrom(headOf(arrow));
+          if (arrow) setTide(true);
           window.setTimeout(
             () => {
               setWinShown(true);
@@ -199,7 +198,7 @@ export function GameScreen({
   const onRestart = () => {
     reported.current = false;
     setResult(null);
-    setRippleFrom(null);
+    setTide(false);
     setWinShown(false);
     setLoseShown(false);
     setPaused(false);
@@ -230,7 +229,7 @@ export function GameScreen({
             dark={dark}
             slideRate={slideRate}
             layerView={layerView}
-            rippleFrom={rippleFrom}
+            tide={tide}
             resetCount={resetCount}
             onTap={onTap}
             onViewChange={setViewDefault}

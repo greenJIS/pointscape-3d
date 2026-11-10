@@ -1,9 +1,8 @@
 import type { Vec3 } from '../core/types';
-import { v3 } from '../core/vec';
+import { sub, v3 } from '../core/vec';
 
 const EPS = 1e-4;
 
-const sub = (a: Vec3, b: Vec3): Vec3 => v3(a.x - b.x, a.y - b.y, a.z - b.z);
 const len = (a: Vec3): number => Math.hypot(a.x, a.y, a.z);
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 =>
   v3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);

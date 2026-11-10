@@ -344,13 +344,15 @@ export class BoardScene {
   private look: (typeof LOOKS)[keyof typeof LOOKS] = LOOKS.dark;
   private readonly boardColor = new THREE.Color();
   private readonly dotColor = new THREE.Color();
+  private readonly dotScratch = new THREE.Color();
+  private readonly dotMatrix = new THREE.Matrix4();
   private sky: THREE.HemisphereLight | null = null;
   private dotsDirty = true;
   private dotsFading = false;
   private lastDots = performance.now() / 1000;
   /** Set when the last arrow is tapped. The win ripple starts once it has slid out. */
-  private pendingWin: Vec3 | null = null;
-  private win: { readonly t0: number; readonly from: Vec3 } | null = null;
+  private pendingWin = false;
+  private win: { readonly t0: number } | null = null;
   private hintStart = -10;
   private readonly reduceMotion =
     typeof window.matchMedia === 'function' &&
@@ -889,11 +891,10 @@ export class BoardScene {
   /**
    * Win tide over the grid dots: a wave that sweeps across the board from left to right (FR-55).
    * It waits until the last arrow has slid out, then runs layer by layer in stacked levels.
-   * `from` is kept for callers but the tide no longer starts at it.
    */
-  ripple(from: Vec3): void {
+  ripple(): void {
     if (this.reduceMotion) return;
-    this.pendingWin = from;
+    this.pendingWin = true;
     this.dirty = true;
   }
 
@@ -924,6 +925,8 @@ export class BoardScene {
     this.dotsDirty = false;
     const { width, height, layers } = this.level;
     const fade = dt / ANIM.dotFade;
+    // The page backdrop keeps every dot: only the arrows move over it.
+    const hideUnder = this.opts.backdrop !== true;
     let fading = false;
     for (let z = 0; z < layers; z++) {
       const mesh = this.dots[z];
@@ -931,7 +934,7 @@ export class BoardScene {
       if (!mesh || !alpha) continue;
       const still = new Set<string>();
       const movers: ArrowView[] = [];
-      for (const v of this.views.values()) {
+      for (const v of hideUnder ? this.views.values() : []) {
         if (v.layer !== z) continue;
         if (v.state === 'idle' || v.state === 'intro') {
           for (const c of v.arrow.cells) still.add(`${c.x},${c.y}`);
@@ -939,18 +942,13 @@ export class BoardScene {
           movers.push(v);
         }
       }
-      const m = new THREE.Matrix4();
-      const color = new THREE.Color();
+      const m = this.dotMatrix;
+      const color = this.dotScratch;
       for (let i = 0; i < width * height; i++) {
         const x = i % width;
         const y = Math.floor(i / width);
-        // The page backdrop keeps every dot: only the arrows move over it.
-        let under = !this.opts.backdrop && still.has(`${x},${y}`);
-        for (
-          let k = 0;
-          k < movers.length && !under && !this.opts.backdrop;
-          k++
-        ) {
+        let under = still.has(`${x},${y}`);
+        for (let k = 0; k < movers.length && !under; k++) {
           under = nearBody(movers[k]?.shown ?? [], x, y, ANIM.dotNear);
         }
         const before = alpha[i] ?? 1;
@@ -1237,8 +1235,8 @@ export class BoardScene {
       for (const v of this.views.values())
         if (v.state === 'exit') sliding = true;
       if (!sliding) {
-        this.win = { t0: now, from: this.pendingWin };
-        this.pendingWin = null;
+        this.win = { t0: now };
+        this.pendingWin = false;
       }
       animating = true;
     }

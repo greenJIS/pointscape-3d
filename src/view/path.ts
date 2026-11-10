@@ -1,4 +1,4 @@
-import { exitRay } from '../core/board';
+import { exitRay, headOf } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { add, v3 } from '../core/vec';
 
@@ -20,8 +20,7 @@ const dist = (a: Vec3, b: Vec3): number =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 export function arrowPath(level: Level, arrow: Arrow): ArrowPath {
-  const head = arrow.cells[arrow.cells.length - 1];
-  if (!head) throw new Error(`arrow ${arrow.id} has no cells`);
+  const head = headOf(arrow);
   const exitCells = exitRay(level, arrow).length + 1;
   const bodyLength = arrow.cells.length - 1;
   const reach = exitCells + bodyLength + 2;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Arrow, Level, Vec3 } from '../core/types';
+import type { Arrow, Level } from '../core/types';
 import { BoardScene, type LayerView } from './BoardScene';
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
   readonly slideRate: number;
   readonly layerView: LayerView;
   /** Set when the level is won: the cell the clear ripple starts from. */
-  readonly rippleFrom: Vec3 | null;
+  readonly tide: boolean;
   /** Each change puts the board back to its opening view. */
   readonly resetCount: number;
   readonly onTap: (arrowId: number) => void;
@@ -41,7 +41,7 @@ export function Board3D({
   backdrop = false,
   slideRate,
   layerView,
-  rippleFrom,
+  tide,
   resetCount,
   onTap,
   onViewChange,
@@ -97,8 +97,8 @@ export function Board3D({
   }, [resetCount]);
 
   useEffect(() => {
-    if (rippleFrom) sceneRef.current?.ripple(rippleFrom);
-  }, [rippleFrom]);
+    if (tide) sceneRef.current?.ripple();
+  }, [tide]);
 
   useEffect(() => {
     if (flashId !== null) sceneRef.current?.bump(flashId);

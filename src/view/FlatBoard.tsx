@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { headOf } from '../core/board';
 import type { Arrow, Level, Vec3 } from '../core/types';
 import { arrowColors, BLOCKED } from './palette';
 
@@ -29,8 +30,7 @@ const pt = (arrow: Arrow, i: number): string => {
 };
 
 function Head({ arrow }: { readonly arrow: Arrow }) {
-  const last = arrow.cells[arrow.cells.length - 1];
-  if (!last) return null;
+  const last = headOf(arrow);
   const cx = last.x + 0.5 + last.z * LAYER_SHIFT;
   const cy = last.y + 0.5 - last.z * LAYER_SHIFT;
   // Heads that point along z are drawn as a ring, since the flat view has no depth.

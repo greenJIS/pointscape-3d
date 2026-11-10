@@ -1,5 +1,6 @@
 import { exitRay, occupancy } from './board';
 import type { Level } from './types';
+import { key } from './vec';
 
 export interface Complexity {
   /** The longest "this must leave before that" chain. A free-for-all board is 0. */
@@ -22,7 +23,7 @@ export function complexityOf(level: Level): Complexity {
   for (const arrow of level.arrows) {
     const set = new Set<number>();
     for (const c of exitRay(level, arrow)) {
-      const id = occupied.get(`${c.x},${c.y},${c.z}`);
+      const id = occupied.get(key(c));
       if (id !== undefined) set.add(id);
     }
     waitsOn.set(arrow.id, set);
