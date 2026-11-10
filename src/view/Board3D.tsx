@@ -54,12 +54,10 @@ export function Board3D({
   const tapRef = useRef(onTap);
   const viewRef = useRef(onViewChange);
   const readyRef = useRef(onReady);
-  const darkRef = useRef(dark);
   const seenLeaving = useRef(new Set<number>());
 
   useEffect(() => {
-    darkRef.current = dark;
-    sceneRef.current?.setDark(dark);
+    sceneRef.current?.syncTheme();
   }, [dark]);
 
   useEffect(() => {
@@ -73,7 +71,6 @@ export function Board3D({
     if (!canvas) return;
     const scene = new BoardScene(canvas, level, {
       lowPower,
-      dark: darkRef.current,
       backdrop,
       onTap: (id) => tapRef.current(id),
       onReady: () => readyRef.current?.(),

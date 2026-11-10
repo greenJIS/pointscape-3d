@@ -309,7 +309,7 @@ export function GameScreen({
               disabled={viewDefault}
               aria-label="Reset view"
               title="Reset view"
-              className="grid size-11 place-items-center rounded-full border border-teal-200/60 bg-linear-to-b from-teal-200 to-teal-500 text-xl font-bold text-slate-900 shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_5px_0_var(--color-teal-700),0_8px_12px_rgb(0_0_0/0.5)] enabled:hover:brightness-110 enabled:active:translate-y-1 enabled:active:shadow-[inset_0_2px_0_rgb(255_255_255/0.7),0_1px_0_var(--color-teal-700),0_2px_4px_rgb(0_0_0/0.5)] disabled:translate-y-0.5 disabled:cursor-default disabled:border-slate-600 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-[inset_0_2px_0_rgb(255_255_255/0.15),0_2px_0_var(--color-slate-800)]"
+              className="grid size-11 place-items-center rounded-full border border-teal-200/60 bg-linear-to-b from-teal-200 to-teal-500 text-xl font-bold text-slate-900 shadow-[inset_0_2px_0_color-mix(in_srgb,var(--color-glint)_70%,transparent),0_5px_0_var(--color-teal-700),0_8px_12px_color-mix(in_srgb,var(--color-shade)_50%,transparent)] enabled:hover:brightness-110 enabled:active:translate-y-1 enabled:active:shadow-[inset_0_2px_0_color-mix(in_srgb,var(--color-glint)_70%,transparent),0_1px_0_var(--color-teal-700),0_2px_4px_color-mix(in_srgb,var(--color-shade)_50%,transparent)] disabled:translate-y-0.5 disabled:cursor-default disabled:border-slate-600 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-[inset_0_2px_0_rgb(255_255_255/0.15),0_2px_0_var(--color-slate-800)]"
             >
               ⌖
             </button>

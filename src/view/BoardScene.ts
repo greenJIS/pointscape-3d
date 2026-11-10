@@ -6,6 +6,7 @@ import type { Arrow, Level, Vec3 } from '../core/types';
 import { key } from '../core/vec';
 import { roundCorners } from './corners';
 import { BLOCKED, POOL, arrowColors } from './palette';
+import { readLook, type Look } from './theme';
 import {
   ANIM,
   arrowPath,
@@ -29,8 +30,6 @@ export interface LayerView {
 
 export interface SceneOptions {
   readonly lowPower: boolean;
-  /** Start in the dark look. `setDark` changes it later. */
-  readonly dark: boolean;
   /** Draw as a page backdrop: see-through, no plate, and the board covers the whole canvas. */
   readonly backdrop?: boolean;
   readonly onTap: (arrowId: number) => void;
@@ -84,11 +83,6 @@ function tideReach(x: number, y: number): number {
   return x + 2 + Math.sin(y * 0.55) * 1.5;
 }
 
-/** Scene colours for each look. `board` is the backdrop that dots fade into. */
-const LOOKS = {
-  dark: { board: '#1e293b', plate: '#475569', dot: '#475569', sky: '#e2e8f0' },
-  light: { board: '#e2e8f0', plate: '#ffffff', dot: '#94a3b8', sky: '#ffffff' },
-} as const;
 /** Direction toward the key light that casts the drop shadows, in the scene. */
 const KEY_DIRECTION = new THREE.Vector3(-4, 7, 9).normalize();
 /** How far a shadow lands from its arrow, in cells, and how far behind it. */
@@ -213,9 +207,6 @@ function tubeMesh(
   return g;
 }
 
-/** See-through strength of a layer plate. */
-const LAYER_OPACITY = 0.14;
-
 function plateShape(w: number, h: number, r: number): THREE.Shape {
   const s = new THREE.Shape();
   const x = -w / 2;
@@ -325,6 +316,8 @@ export class BoardScene {
   private moved = false;
   private pinchStart = 0;
   private pinchZoom = 1;
+  /** Colours of the current theme. Declared first: later fields are built from it. */
+  private look: Look = readLook();
   private readonly batches: THREE.Mesh[] = [];
   private readonly batchMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
@@ -335,7 +328,7 @@ export class BoardScene {
   /** Cuts arrows off at the plate edge, so a line sliding out vanishes at the border. */
   private readonly clipPlanes = [0, 1, 2, 3].map(() => new THREE.Plane());
   private readonly shadowMat = new THREE.MeshBasicMaterial({
-    color: '#000000',
+    color: this.look.shade,
     transparent: true,
     opacity: 0.38,
     depthWrite: false,
@@ -344,7 +337,6 @@ export class BoardScene {
   private batchDirty = true;
   private lastRebuild = 0;
   private readonly dotAlpha: Float32Array[] = [];
-  private look: (typeof LOOKS)[keyof typeof LOOKS] = LOOKS.dark;
   private readonly boardColor = new THREE.Color();
   private readonly dotColor = new THREE.Color();
   private readonly dotScratch = new THREE.Color();
@@ -365,7 +357,7 @@ export class BoardScene {
   private readonly preview = new THREE.Group();
   private readonly previewGeo = new THREE.BoxGeometry(0.3, 0.08, 0.08);
   private readonly previewOk = new THREE.MeshBasicMaterial({
-    color: '#4ade80',
+    color: this.look.ok,
   });
   private readonly previewBlocked = new THREE.MeshBasicMaterial({
     color: BLOCKED,
@@ -390,7 +382,7 @@ export class BoardScene {
     );
     this.renderer.localClippingEnabled = true;
     this.shadowMat.clippingPlanes = this.clipPlanes;
-    this.look = opts.dark ? LOOKS.dark : LOOKS.light;
+    this.look = readLook();
     this.scene.background = opts.backdrop
       ? null
       : new THREE.Color(this.look.board);
@@ -427,7 +419,7 @@ export class BoardScene {
     const backKey = new THREE.DirectionalLight('#ffffff', 1.7);
     backKey.position.set(-4, 7, -9);
     this.scene.add(backKey);
-    const rim = new THREE.DirectionalLight('#a5f3fc', 0.5);
+    const rim = new THREE.DirectionalLight(this.look.rim, 0.5);
     rim.position.set(6, -3, -6);
     this.scene.add(rim);
   }
@@ -544,7 +536,7 @@ export class BoardScene {
       const mat = new THREE.MeshBasicMaterial({
         color: this.look.plate,
         transparent: true,
-        opacity: LAYER_OPACITY,
+        opacity: this.look.layer,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
@@ -993,10 +985,9 @@ export class BoardScene {
 
   // ---- state from the game ----
 
-  /** Switch between the dark and light look. */
-  setDark(dark: boolean): void {
-    const look = dark ? LOOKS.dark : LOOKS.light;
-    if (look === this.look) return;
+  /** Pick up the scene colours of the current theme from the CSS scheme. */
+  syncTheme(): void {
+    const look = readLook();
     this.look = look;
     if (!this.opts.backdrop)
       this.scene.background = new THREE.Color(look.board);
@@ -1004,10 +995,13 @@ export class BoardScene {
       this.sky.color.set(look.sky);
       this.sky.groundColor.set(look.board);
     }
-    for (const plate of this.plates) {
+    this.plates.forEach((plate, z) => {
       const mat = plate.material;
-      if (mat instanceof THREE.MeshBasicMaterial) mat.color.set(look.plate);
-    }
+      if (!(mat instanceof THREE.MeshBasicMaterial)) return;
+      mat.color.set(look.plate);
+      // A layer that is clearing or gone keeps fading on its own.
+      if (!this.layerClearT[z]) mat.opacity = look.layer;
+    });
     this.dotsDirty = true;
     this.dirty = true;
   }
@@ -1285,7 +1279,7 @@ export class BoardScene {
           // A restart brought arrows back.
           this.layerClearT[z] = 0;
           this.layerGone[z] = false;
-          mat.opacity = LAYER_OPACITY;
+          mat.opacity = this.look.layer;
           plate.scale.setScalar(1);
           dots.scale.setScalar(1);
           this.applyLayerView();
@@ -1296,7 +1290,7 @@ export class BoardScene {
       if (t0 === 0) this.layerClearT[z] = now;
       const k = Math.min(1, (now - (t0 || now)) / ANIM.layerClear);
       const e = k * k;
-      mat.opacity = LAYER_OPACITY * (1 - e);
+      mat.opacity = this.look.layer * (1 - e);
       plate.scale.setScalar(1 - 0.12 * e);
       if (!won) dots.scale.setScalar(1 - 0.12 * e);
       if (k >= 1) {

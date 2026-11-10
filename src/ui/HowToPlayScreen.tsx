@@ -63,11 +63,12 @@ function Mini({ children }: { readonly children: React.ReactNode }) {
 function Ray({
   from,
   to,
-  color,
+  className,
 }: {
   readonly from: number;
   readonly to: number;
-  readonly color: string;
+  /** A `stroke-*` colour class from the scheme in index.css. */
+  readonly className: string;
 }) {
   return (
     <line
@@ -75,7 +76,7 @@ function Ray({
       y1={1.6}
       x2={to}
       y2={1.6}
-      stroke={color}
+      className={className}
       strokeWidth={0.12}
       strokeDasharray="0.25 0.2"
     />
@@ -93,7 +94,7 @@ const CARDS: readonly {
     picture: (
       <Mini>
         <Arrow x={0.4} y={1.6} length={2} color={POOL[2] ?? '#fff'} />
-        <Ray from={2.9} to={5} color="#4ade80" />
+        <Ray from={2.9} to={5} className="stroke-ok" />
       </Mini>
     ),
   },
@@ -103,7 +104,7 @@ const CARDS: readonly {
     picture: (
       <Mini>
         <Arrow x={0.4} y={1.6} length={1.6} color={POOL[0] ?? '#fff'} />
-        <Ray from={2.6} to={3.2} color="#f87171" />
+        <Ray from={2.6} to={3.2} className="stroke-bad" />
         <rect
           x={3.2}
           y={1.2}

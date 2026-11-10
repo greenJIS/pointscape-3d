@@ -1,15 +1,17 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
+import { cssVar } from '../view/theme';
 import type { ThemeMode } from './settings';
 
 /** Whether the dark look is on. Keeps `<html data-theme>` and the browser's theme colour in step. */
 export function useDark(mode: ThemeMode): boolean {
   const dark = mode === 'dark';
-  useEffect(() => {
+  // Layout effect: the 3D scene reads its colours from CSS in its own effect, so the theme must be set first.
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', dark ? '#020617' : '#f1f5f9');
+      ?.setAttribute('content', cssVar('--color-slate-950'));
   }, [dark]);
   return dark;
 }

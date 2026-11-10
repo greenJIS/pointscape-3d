@@ -42,7 +42,7 @@ export function NameScreen({ dark, lowPower, onDone }: Props) {
           </p>
           <button
             type="submit"
-            className="mt-5 w-full rounded-3xl bg-linear-to-b from-teal-200 to-teal-300 py-4 text-xl font-black text-ink shadow-[inset_0_3px_0_rgb(255_255_255/0.7),0_7px_0_var(--color-teal-700),0_14px_24px_rgb(0_0_0/0.35)] active:translate-y-1 active:shadow-[inset_0_3px_0_rgb(255_255_255/0.7),0_2px_0_var(--color-teal-700)]"
+            className="mt-5 w-full rounded-3xl bg-linear-to-b from-teal-200 to-teal-300 py-4 text-xl font-black text-ink shadow-[inset_0_3px_0_color-mix(in_srgb,var(--color-glint)_70%,transparent),0_7px_0_var(--color-teal-700),0_14px_24px_color-mix(in_srgb,var(--color-shade)_35%,transparent)] active:translate-y-1 active:shadow-[inset_0_3px_0_color-mix(in_srgb,var(--color-glint)_70%,transparent),0_2px_0_var(--color-teal-700)]"
           >
             Continue
           </button>

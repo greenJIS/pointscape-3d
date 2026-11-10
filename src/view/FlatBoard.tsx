@@ -41,7 +41,7 @@ function Head({ arrow }: { readonly arrow: Arrow }) {
         cy={cy}
         r={0.38}
         fill="none"
-        stroke="#fff"
+        className="stroke-glint"
         strokeWidth={0.1}
       />
     );
@@ -123,7 +123,7 @@ export function FlatBoard({
               <polyline
                 points={points}
                 fill="none"
-                stroke="#000"
+                className="stroke-shade"
                 strokeWidth={0.3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -149,7 +149,7 @@ export function FlatBoard({
               <polyline
                 points={points}
                 fill="none"
-                stroke="#fff"
+                className="stroke-glint"
                 strokeWidth={0.05}
                 strokeLinecap="round"
                 strokeLinejoin="round"

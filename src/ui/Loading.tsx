@@ -107,7 +107,7 @@ function Board() {
   return (
     <div
       aria-hidden="true"
-      className="w-full max-w-84 overflow-hidden rounded-3xl border border-slate-600 bg-slate-800 shadow-[0_2px_0_var(--color-slate-600),0_12px_26px_rgb(0_0_0/0.35)]"
+      className="w-full max-w-84 overflow-hidden rounded-3xl border border-slate-600 bg-slate-800 shadow-[0_2px_0_var(--color-slate-600),0_12px_26px_color-mix(in_srgb,var(--color-shade)_35%,transparent)]"
     >
       <svg
         viewBox={`0 0 ${CELL * COLS} ${CELL * ROWS}`}
@@ -122,7 +122,7 @@ function Board() {
             className="fill-slate-600"
           />
         ))}
-        <g className="drop-shadow-[3px_4px_0_rgb(0_0_0/0.3)]">
+        <g className="drop-shadow-[3px_4px_0_color-mix(in_srgb,var(--color-shade)_30%,transparent)]">
           {DRAWN.map((d, i) => (
             <g key={i} className="load-arrow" style={d.style}>
               <line

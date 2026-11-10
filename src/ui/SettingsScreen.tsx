@@ -118,7 +118,7 @@ export function SettingsScreen({
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className="rounded-2xl bg-red-400 py-3 font-bold text-ink shadow-[0_4px_0_#b91c1c]"
+              className="rounded-2xl bg-red-400 py-3 font-bold text-ink shadow-[0_4px_0_var(--color-danger-edge)]"
             >
               Reset progress
             </button>

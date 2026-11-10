@@ -9,6 +9,14 @@
   --color-pool-indigo: #5b6bff;
   --color-pool-magenta: #ff2bd6;
   --color-blocked: #ff4d5e;
+  /* Clear and blocked paths in the How to play pictures and the path preview. */
+  --color-ok: #4ade80;
+  --color-bad: #f87171;
+  /* Edge under the red Reset button. */
+  --color-danger-edge: #b91c1c;
+  /* Highlight on glossy buttons, and the base of every drop shadow. Both ignore the theme. */
+  --color-glint: #ffffff;
+  --color-shade: #000000;
   --color-teal-200: #7dfbe8;
   --color-teal-300: #00f5d0;
   --color-teal-500: #00c9a7;
@@ -36,6 +44,32 @@
 }
 
 /*
+ * Colour scheme. Every colour in the game comes from this file.
+ * - Fixed colours (arrow pool, teal, feedback) are in @theme above and look the same in both themes.
+ * - Surfaces follow the theme. The slate scale flips below, so slate classes need no second set.
+ * - The values that the 3D scene, the splash and the browser bar need are plain custom properties
+ *   (--scene-*, --hud-*, --logo-*), which view/theme.ts reads at run time.
+ * index.html keeps its own copy for the moment before this file loads.
+ */
+:root {
+  --scene-board: #1e293b;
+  --scene-plate: #475569;
+  --scene-layer: 0.14;
+  --scene-dot: #475569;
+  --scene-sky: #e2e8f0;
+  --scene-rim: #a5f3fc;
+  --hud-bg: rgb(51 65 85 / 0.92);
+  --hud-edge: rgb(203 213 225 / 0.55);
+  --hud-ink: #ffffff;
+  --logo-word: #e2e8f0;
+  --logo-word-edge: #64748b;
+  --logo-3d-lit: #14b8a6;
+  --logo-3d-mid: #0f766e;
+  --logo-3d-dim: #115e59;
+  --logo-3d-dark: #134e4a;
+}
+
+/*
  * Light theme: the slate scale runs backwards, so every slate class in the UI turns light
  * without a second set of classes.
  */
@@ -52,6 +86,16 @@
   --color-slate-300: #334155;
   --color-slate-200: #1e293b;
   --color-plate: #e2e8f0;
+  --scene-board: #e2e8f0;
+  /* A white plate vanishes on the pale board, so the light look tints its layers darker. */
+  --scene-plate: #475569;
+  --scene-layer: 0.1;
+  --scene-dot: #94a3b8;
+  --scene-sky: #ffffff;
+  --hud-bg: rgb(255 255 255 / 0.96);
+  --hud-edge: rgb(71 85 105 / 0.55);
+  --hud-ink: #0f172a;
+  --logo-word: #1e293b;
 }
 
 [data-theme='dark'] {
@@ -60,52 +104,43 @@
 
 /* 3D wordmark on Home and the name screen. The extrusion is stacked text-shadow. */
 @utility logo-word {
-  color: var(--color-slate-200);
+  color: var(--logo-word);
   text-shadow:
-    1px 1px 0 #64748b,
-    2px 2px 0 #64748b,
-    3px 3px 0 #64748b,
-    4px 4px 0 #64748b,
-    6px 8px 10px rgb(0 0 0 / 0.5);
+    1px 1px 0 var(--logo-word-edge),
+    2px 2px 0 var(--logo-word-edge),
+    3px 3px 0 var(--logo-word-edge),
+    4px 4px 0 var(--logo-word-edge),
+    6px 8px 10px color-mix(in srgb, var(--color-shade) 50%, transparent);
   transform: rotateX(12deg);
 }
 
 @utility logo-3d {
-  color: #00f5d0;
+  color: var(--color-teal-300);
   text-shadow:
-    1px 1px 0 #14b8a6,
-    2px 2px 0 #14b8a6,
-    3px 3px 0 #14b8a6,
-    4px 4px 0 #0f766e,
-    5px 5px 0 #0f766e,
-    6px 6px 0 #0f766e,
-    7px 7px 0 #0f766e,
-    8px 8px 0 #115e59,
-    9px 9px 0 #115e59,
-    10px 10px 0 #134e4a,
-    12px 16px 18px rgb(0 0 0 / 0.65);
+    1px 1px 0 var(--logo-3d-lit),
+    2px 2px 0 var(--logo-3d-lit),
+    3px 3px 0 var(--logo-3d-lit),
+    4px 4px 0 var(--logo-3d-mid),
+    5px 5px 0 var(--logo-3d-mid),
+    6px 6px 0 var(--logo-3d-mid),
+    7px 7px 0 var(--logo-3d-mid),
+    8px 8px 0 var(--logo-3d-dim),
+    9px 9px 0 var(--logo-3d-dim),
+    10px 10px 0 var(--logo-3d-dark),
+    12px 16px 18px color-mix(in srgb, var(--color-shade) 65%, transparent);
   transform: rotateX(16deg) rotateY(-14deg);
   animation: logo-sway 3.6s ease-in-out infinite;
 }
 
 /* Floating panel over the board canvas. Lighter than a dark canvas, whiter than a pale one. */
 @utility hud-card {
-  background: rgb(51 65 85 / 0.92);
-  border: 1px solid rgb(203 213 225 / 0.55);
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-edge);
   box-shadow:
-    0 2px 0 rgb(203 213 225 / 0.55),
-    0 10px 22px rgb(0 0 0 / 0.35);
+    0 2px 0 var(--hud-edge),
+    0 10px 22px color-mix(in srgb, var(--color-shade) 35%, transparent);
   backdrop-filter: blur(10px);
-  color: #fff;
-}
-
-[data-theme='light'] .hud-card {
-  background: rgb(255 255 255 / 0.96);
-  border-color: rgb(71 85 105 / 0.55);
-  box-shadow:
-    0 2px 0 rgb(71 85 105 / 0.55),
-    0 10px 22px rgb(0 0 0 / 0.25);
-  color: #0f172a;
+  color: var(--hud-ink);
 }
 
 /* Game scrollbar: a slim rounded thumb that follows the theme and lights up teal. */
