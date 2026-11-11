@@ -343,7 +343,9 @@ export function GameScreen({
           <div className="w-36 rounded-2xl p-2.5 text-sm hud-card sm:w-44">
             <div className="flex items-end justify-between">
               <span className="text-xs opacity-80">Arrows left</span>
-              <b className="text-2xl leading-none sm:text-3xl">{left}</b>
+              <b className="min-w-12 text-right text-2xl leading-none sm:text-3xl">
+                {left}
+              </b>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-500/40">
               <div

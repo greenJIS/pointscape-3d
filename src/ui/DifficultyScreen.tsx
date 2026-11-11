@@ -57,7 +57,7 @@ export function DifficultyScreen({
                   />
                   {d.name}
                 </h2>
-                <span className="text-[15px] font-semibold text-slate-300 tabular-nums">
+                <span className="text-[15px] font-semibold text-slate-300">
                   {side}×{side} grid
                 </span>
               </div>
@@ -90,7 +90,7 @@ export function DifficultyScreen({
                               L
                             </small>
                           </span>
-                          <span className="text-[13px] font-bold tabular-nums">
+                          <span className="text-[13px] font-bold">
                             {cleared}/{LEVELS_PER_TRACK}
                           </span>
                           <span className="mt-0.5 h-1.5 w-7/10 overflow-hidden rounded-full bg-ink/25">
