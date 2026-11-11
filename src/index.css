@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 @theme {
+  /* Rounded, chunky face to match the tube arrows and glossy buttons. Self-hosted, variable weight. */
+  --font-sans: 'Fredoka Variable', ui-rounded, system-ui, sans-serif;
   --color-plate: #1e293b;
   /* Vivid game colours. The same in both themes. They replace Tailwind's softer shades. */
   --color-pool-orange: #ff8a00;

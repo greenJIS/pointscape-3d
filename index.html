@@ -26,6 +26,15 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <style>
+      /* Same file the app bundle loads, so the splash and the game use one download. */
+      @font-face {
+        font-family: 'Fredoka Variable';
+        font-style: normal;
+        font-display: block;
+        font-weight: 300 700;
+        src: url('@fontsource-variable/fredoka/files/fredoka-latin-wght-normal.woff2')
+          format('woff2-variations');
+      }
       /* Colours match the slate scale of each theme in src/index.css. */
       #splash {
         --sp-bg: #f1f5f9;
@@ -40,7 +49,8 @@
         min-height: 100vh;
         overflow: hidden;
         font:
-          700 18px/1.2 Roboto,
+          700 18px/1.2 'Fredoka Variable',
+          Roboto,
           system-ui,
           sans-serif;
         background-image: radial-gradient(
